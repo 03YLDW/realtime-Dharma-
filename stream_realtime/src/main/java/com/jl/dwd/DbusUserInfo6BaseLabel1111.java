@@ -1,0 +1,251 @@
+package com.jl.dwd;
+
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
+import com.jl.utils.FlinkSourceUtil;
+import com.jl.utils.KafkaUtils;
+import org.apache.flink.api.common.eventtime.WatermarkStrategy;
+import org.apache.flink.api.common.functions.FilterFunction;
+import org.apache.flink.api.common.functions.MapFunction;
+import org.apache.flink.api.common.functions.RichMapFunction;
+import org.apache.flink.connector.kafka.source.KafkaSource;
+import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsInitializer;
+import org.apache.flink.streaming.api.datastream.DataStreamSource;
+import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
+import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+
+import java.text.Format;
+import java.time.Duration;
+import java.time.LocalDate;
+import java.time.Period;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.Date;
+
+import static java.time.format.DateTimeFormatter.ISO_DATE;
+
+public class DbusUserInfo6BaseLabel1111 {
+
+
+    public static void main(String[] args) throws Exception {
+        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+        env.setParallelism(1);
+//topic_db数据
+//        {
+//            "before": null,
+//                "after": {
+//            "id": 2,
+//                    "activity_id": 1,
+//                    "activity_type": "3101",
+//                    "condition_amount": 8000.0,
+//                    "condition_num": null,
+//                    "benefit_amount": 900.0,
+//                    "benefit_discount": null,
+//                    "benefit_level": 2,
+//                    "create_time": 1644714512000,
+//                    "operate_time": null
+//        },
+//            "source": {
+//            "version": "1.9.7.Final",
+//                    "connector": "mysql",
+//                    "name": "mysql_binlog_source",
+//                    "ts_ms": 1744098486000,
+//                    "snapshot": "false",
+//                    "db": "realtime_v1",
+//                    "sequence": null,
+//                    "table": "activity_rule",
+//                    "server_id": 1,
+//                    "gtid": null,
+//                    "file": "mysql-bin.000001",
+//                    "pos": 794430,
+//                    "row": 0,
+//                    "thread": 129,
+//                    "query": null
+//        },
+//            "op": "c",
+//                "ts_ms": 1747055319968,
+//                "transaction": null
+//        }
+
+
+        SingleOutputStreamOperator<String> kfk_cdc_source = env.fromSource(
+                        //1. 创建 KafkaSource
+                        KafkaUtils.buildKafkaSecureSource(
+                                "cdh01:9092",
+                                "topic_db",
+                                new Date().toString(),
+                                OffsetsInitializer.earliest()
+                        ),
+                        //2. 设置 WatermarkStrategy
+                        // WatermarkStrategy 的作用
+                        //事件时间（Event Time）：使用数据自身携带的时间戳（如 ts_ms）作为时间基准，而非处理时间（Processing Time）。
+                        //水位线（Watermark）：一种逻辑时钟机制，用于跟踪事件时间的进展，解决乱序数据带来的计算延迟问题。
+                        //功能：告诉 Flink 如何从数据中提取事件时间戳，并生成水位线以推动时间窗口的触发。
+                        //定义允许的最大乱序时间为 3 秒
+                        WatermarkStrategy.<String>forBoundedOutOfOrderness(Duration.ofSeconds(3))
+                                //withTimestampAssigner
+                                //从原始数据（event）中提取事件时间戳，赋值给 Flink 内部的时间属性。
+                                // 代码逻辑：
+                                //将原始数据（String 类型）解析为 JSONObject。
+                                //检查是否存在 ts_ms 字段，并尝试将其转为 long 类型时间戳。
+                                //若解析失败（如字段缺失或格式错误），打印错误日志并返回 0L（需注意这可能引发后续计算问题）。
+                                .withTimestampAssigner((event, timestamp) -> {
+
+                                            JSONObject jsonObject = JSONObject.parseObject(event);
+
+                                            if (event != null && jsonObject.containsKey("tm_ms")) {
+                                                try {
+                                                    return jsonObject.getLong("tm_ms");
+                                                } catch (Exception e) {
+                                                    e.printStackTrace();
+                                                    //将错误信息打印出来
+                                                    System.out.println("Failed to parse event as JSON or get ts_ms: " + event);
+                                                    return 0L;
+                                                }
+                                            } else {
+                                                return 0L;
+                                            }
+                                        }
+                                ),
+                        //3. 设置 Source Name
+                        "kfk_cdc_db_source"
+                ).uid("kfk_cdc_db_source")
+                .name("kfk_cdc_db_source");
+
+//        kfk_cdc_source.print();
+//          将数据转换成 JSONObject                                            JSONObject.parseObject(data) <====> JSON::parseObject
+        SingleOutputStreamOperator<JSONObject> kfk_source = kfk_cdc_source.map(data -> JSONObject.parseObject(data))
+                .uid("parseObject")
+                .name("parseObject");
+        // 过滤出 user_info
+        SingleOutputStreamOperator<JSONObject> userinfoDs = kfk_source.filter(data -> data.getJSONObject("source").getString("table").equals("user_info"))
+                .uid("userinfoDs")
+                .name("userinfoDs");
+
+//        userinfoDs.print();
+//        {"op":"c","after":{"birthday":12516,"gender":"M","create_time":1744133347000,"login_name":"8o958y5","nick_name":"富顺","name":"乐富顺","user_level":"1","phone_num":"13736681181","id":584,"email":"8o958y5@263.net"},"source":{"thread":934,"server_id":1,"version":"1.9.7.Final","file":"mysql-bin.000053","connector":"mysql","pos":3365754,"name":"mysql_binlog_source","row":0,"ts_ms":1746437347000,"snapshot":"false","db":"realtime_v1","table":"user_info"},"ts_ms":1747055322190}
+//        "birthday":12516  将生日转换为  年 月 日
+        SingleOutputStreamOperator<JSONObject> userinfoBD = userinfoDs.map(new MapFunction<JSONObject, JSONObject>() {
+            @Override
+            public JSONObject map(JSONObject value) throws Exception {
+                JSONObject after = value.getJSONObject("after");
+                // 检查after字典是否非空 且包含"birthday"键
+                if (after!=null && after.containsKey("birthday")){
+                    Integer birthday1 = after.getInteger("birthday");
+                    if (birthday1!=null){
+                        LocalDate localDate = LocalDate.ofEpochDay(birthday1);
+                        after.put("birthday",localDate.format(DateTimeFormatter.ISO_DATE));
+                    }
+                }
+                return  value;
+            }
+        });
+
+//        userinfoBD.print();
+//        {"op":"c","after":{   "birthday":"1971-01-08"   ,"gender":"M","create_time":1744125833000,"login_name":"kzffh62c","nick_name":"博诚","name":"金博诚","user_level":"3","phone_num":"13438591571","id":423,"email":"kzffh62c@googlemail.com"},"source":{"thread":148,"server_id":1,"version":"1.9.7.Final","file":"mysql-bin.000050","connector":"mysql","pos":3403508,"name":"mysql_binlog_source","row":0,"ts_ms":1746343433000,"snapshot":"false","db":"realtime_v1","table":"user_info"},"ts_ms":1747055321709}
+
+        // 过滤出 user_info_sup_msg表
+        SingleOutputStreamOperator<JSONObject> user_info_sup_msg = kfk_source.filter(data -> data.getJSONObject("source").getString("table").equals("user_info_sup_msg"));
+        user_info_sup_msg.print();
+
+        //首先将user_info中需要的字段进行封装，包括用户id，用户名，用户等级，用户昵称，手机号，邮箱，性别，生日，年代，星座
+        //其中 年龄，星座，年代是另外计算出来的
+        SingleOutputStreamOperator<JSONObject> newUserInfoDs = userinfoBD.map(new RichMapFunction<JSONObject, JSONObject>() {
+            @Override
+            public JSONObject map(JSONObject value) throws Exception {
+                JSONObject newJSON = new JSONObject();
+
+                if (value.containsKey("after") && value.getJSONObject("after") != null) {
+                    JSONObject after = value.getJSONObject("after");
+                    newJSON.put("id", after.getString("id"));
+                    newJSON.put("name", after.getString("name"));
+                    newJSON.put("user_level", after.getString("user_level"));
+                    newJSON.put("login_name", after.getString("login_name"));
+                    newJSON.put("phone_num", after.getString("phone_num"));
+                    newJSON.put("email", after.getString("email"));
+                    newJSON.put("gender", after.getString("gender") != null ? after.getString("gender") : "home");
+                    newJSON.put("birthday", after.getString("birthday"));
+                    newJSON.put("ts_ms", value.getJSONObject("source").getString("ts_ms"));
+                    String birthday = after.getString("birthday");
+                    if (birthday != null && !birthday.isEmpty()) {
+//                         将字符串形式的生日转换为LocalDate对象
+//                        ISO_DATE 是 Java 中 DateTimeFormatter 类的一个标准格式常量，表示 ISO 本地日期格式，其格式为 yyyy-MM-dd。
+                        LocalDate birthday1 = LocalDate.parse(birthday, ISO_DATE);
+                        // 获取当前日期，使用上海时区
+                        LocalDate now = LocalDate.now(ZoneId.of("Asia/Shanghai"));
+                        int age = calculateAge(birthday1, now);
+                        //计算星座
+                        String constellation = constellation(birthday1);
+                        //计算年代
+                        int decade = birthday1.getYear() / 10 * 10;
+                        //年龄
+                        newJSON.put("age", age);
+                        //年代
+                        newJSON.put("decade", decade);
+                        //星座
+                        newJSON.put("constellation", constellation);
+
+                    }
+                }
+                return newJSON;
+            }
+        });
+//        newUserInfoDs.print();
+//{"birthday":"2007-06-08","decade":2000,"login_name":"nla0rjjhu1","gender":"M","constellation":"双子座","name":"令狐文","user_level":"1","phone_num":"13468892149","id":"377","email":"nla0rjjhu1@googlemail.com","ts_ms":"1745903788000","age":17}
+
+        SingleOutputStreamOperator<JSONObject> userSupMsgDs = user_info_sup_msg.map(new RichMapFunction<JSONObject, JSONObject>() {
+            @Override
+            public JSONObject map(JSONObject value) throws Exception {
+                JSONObject newJSON = new JSONObject();
+                if (value.containsKey("after") && value.getJSONObject("after") != null) {
+                    JSONObject after = value.getJSONObject("after");
+                    newJSON.put("uid", after.getString("uid"));
+                    newJSON.put("unit_height", after.getString("unit_height"));
+                    newJSON.put("create_ts", after.getLong("create_ts"));
+                    newJSON.put("weight", after.getString("weight"));
+                    newJSON.put("unit_weight", after.getString("unit_weight"));
+                    newJSON.put("height", after.getString("height"));
+                    newJSON.put("ts_ms", value.getLong("ts_ms"));
+
+
+                }
+                return newJSON;
+            }
+        });
+
+//        newUserInfoDs.keyBy(data->data.)
+        env.execute();
+
+    }
+/*
+ * 计算年龄
+ */
+    private static int calculateAge(LocalDate birthdate,LocalDate now){
+        return Period.between(birthdate,now).getYears();
+    }
+
+  //  定义星座
+    private static  String constellation(LocalDate birthDate){
+        //  星座  分别获取月份和日
+        int month = birthDate.getMonthValue();
+        int day = birthDate.getDayOfMonth();
+
+        // 星座日期范围定义
+        if ((month == 12 && day >= 22) || (month == 1 && day <= 19)) return "摩羯座";
+        else if (month == 1 || month == 2 && day <= 18) return "水瓶座";
+        else if (month == 2 || month == 3 && day <= 20) return "双鱼座";
+        else if (month == 3 || month == 4 && day <= 19) return "白羊座";
+        else if (month == 4 || month == 5 && day <= 20) return "金牛座";
+        else if (month == 5 || month == 6 && day <= 21) return "双子座";
+        else if (month == 6 || month == 7 && day <= 22) return "巨蟹座";
+        else if (month == 7 || month == 8 && day <= 22) return "狮子座";
+        else if (month == 8 || month == 9 && day <= 22) return "处女座";
+        else if (month == 9 || month == 10 && day <= 23) return "天秤座";
+        else if (month == 10 || month == 11 && day <= 22) return "天蝎座";
+        else return "射手座";
+
+
+    }
+
+
+}
