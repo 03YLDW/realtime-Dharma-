@@ -1,30 +1,22 @@
 package com.jl.dwd;
 
-import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.jl.function.IntervalJoinUserInfoLabelProcessFunc;
-import com.jl.utils.FlinkSourceUtil;
 import com.jl.utils.KafkaUtils;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
-import org.apache.flink.api.common.functions.FilterFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.RichMapFunction;
-import org.apache.flink.connector.kafka.source.KafkaSource;
 import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsInitializer;
-import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.windowing.time.Time;
-
-import java.text.Format;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.Period;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
-
 import static java.time.format.DateTimeFormatter.ISO_DATE;
 
 public class DbusUserInfo6BaseLabel {
@@ -117,7 +109,7 @@ public class DbusUserInfo6BaseLabel {
 
 //        kfk_cdc_source.print();
 //          将数据转换成 JSONObject                                            JSONObject.parseObject(data) <====> JSON::parseObject
-        SingleOutputStreamOperator<JSONObject> kfk_source = kfk_cdc_source.map(data -> JSONObject.parseObject(data))
+        SingleOutputStreamOperator<JSONObject> kfk_source = kfk_cdc_source.map(JSONObject::parseObject)
                 .uid("parseObject")
                 .name("parseObject");
         // 过滤出 user_info
@@ -130,7 +122,7 @@ public class DbusUserInfo6BaseLabel {
 //        "birthday":12516  将生日转换为  年 月 日
         SingleOutputStreamOperator<JSONObject> userinfoBD = userinfoDs.map(new MapFunction<JSONObject, JSONObject>() {
             @Override
-            public JSONObject map(JSONObject value) throws Exception {
+            public JSONObject map(JSONObject value){
                 JSONObject after = value.getJSONObject("after");
                 // 检查after字典是否非空 且包含"birthday"键
                 if (after!=null && after.containsKey("birthday")){
@@ -155,7 +147,7 @@ public class DbusUserInfo6BaseLabel {
         //其中 年龄，星座，年代是另外计算出来的
         SingleOutputStreamOperator<JSONObject> newUserInfoDs = userinfoBD.map(new RichMapFunction<JSONObject, JSONObject>() {
             @Override
-            public JSONObject map(JSONObject value) throws Exception {
+            public JSONObject map(JSONObject value)  {
                 JSONObject newJSON = new JSONObject();
 
                 if (value.containsKey("after") && value.getJSONObject("after") != null) {
@@ -198,7 +190,7 @@ public class DbusUserInfo6BaseLabel {
 
         SingleOutputStreamOperator<JSONObject> userSupMsgDs = user_info_sup_msg.map(new RichMapFunction<JSONObject, JSONObject>() {
             @Override
-            public JSONObject map(JSONObject value) throws Exception {
+            public JSONObject map(JSONObject value) {
                 JSONObject result = new JSONObject();
                 if (value.containsKey("after") && value.getJSONObject("after") != null) {
                     JSONObject after = value.getJSONObject("after");
