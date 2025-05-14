@@ -1,25 +1,69 @@
 package com.jl.dwd;
 
+import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
-import com.jl.function.IntervalJoinUserInfoLabelProcessFunc;
+import com.jl.bean.DimBaseCategory;
+import com.jl.function.*;
+import com.jl.utils.ConfigUtils;
+import com.jl.utils.JdbcUtils;
 import com.jl.utils.KafkaUtils;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsInitializer;
+import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.windowing.assigners.TumblingProcessingTimeWindows;
 import org.apache.flink.streaming.api.windowing.time.Time;
+
+import java.sql.Connection;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.Period;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
+import java.util.List;
+
 import static java.time.format.DateTimeFormatter.ISO_DATE;
 
 public class DbusUserInfo6BaseLabel {
+
+
+    private static final List<DimBaseCategory> dim_base_categories;
+    private static final Connection connection;
+
+    private static final double device_rate_weight_coefficient = 0.1; // 设备权重系数
+    private static final double search_rate_weight_coefficient = 0.15; // 搜索权重系数
+
+    static {
+        try {
+            connection = JdbcUtils.getMySQLConnection(
+                    "jdbc:mysql://cdh03:3306",
+                    "root",
+                        "root");
+            String sql = "select b3.id,                          \n" +
+                    "            b3.name as b3name,              \n" +
+                    "            b2.name as b2name,              \n" +
+                    "            b1.name as b1name               \n" +
+                    "     from realtime_v1.base_category3 as b3  \n" +
+                    "     join realtime_v1.base_category2 as b2  \n" +
+                    "     on b3.category2_id = b2.id             \n" +
+                    "     join realtime_v1.base_category1 as b1  \n" +
+                    "     on b2.category1_id = b1.id";
+            dim_base_categories = JdbcUtils.queryList2(connection, sql, DimBaseCategory.class, false);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+    }
+
+
+
+
+
 
 
     public static void main(String[] args) throws Exception {
@@ -108,7 +152,74 @@ public class DbusUserInfo6BaseLabel {
                 .name("kfk_cdc_db_source");
 
 //        kfk_cdc_source.print();
+
+        //读取topic_log
+//        {
+//            "common": {
+//            "ar": "1",
+//                    "ba": "iPhone",
+//                    "ch": "Appstore",
+//                    "is_new": "0",
+//                    "md": "iPhone 14",
+//                    "mid": "mid_389",
+//                    "os": "iOS 13.3.1",
+//                    "sid": "93171837-27ca-47f1-880e-62f08fa622f6",
+//                    "vc": "v2.1.134"
+//        },
+//            "start": {
+//            "entry": "icon",
+//                    "loading_time": 14804,
+//                    "open_ad_id": 8,
+//                    "open_ad_ms": 3561,
+//                    "open_ad_skip_ms": 0
+//        },
+//            "ts": 1744104535000
+//        }
+
+
+//        kfk_cdc_source.print();
 //          将数据转换成 JSONObject                                            JSONObject.parseObject(data) <====> JSON::parseObject
+//        读取 日志数据   topic_log
+        SingleOutputStreamOperator<String> sourceLog = env.fromSource(
+                        KafkaUtils.buildKafkaSecureSource(
+                                "cdh01:9092",
+                                "topic_log",
+                                new Date().toString(),
+                                OffsetsInitializer.earliest()
+                        ),
+                        WatermarkStrategy.<String>forBoundedOutOfOrderness(Duration.ofSeconds(3))
+                                .withTimestampAssigner((event, timestamp) -> {
+                                            JSONObject jsonObject = JSONObject.parseObject(event);
+                                            if (event != null && jsonObject.containsKey("tm_ms")) {
+                                                try {
+                                                    return jsonObject.getLong("tm_ms");
+                                                } catch (Exception e) {
+                                                    e.printStackTrace();
+                                                    System.out.println("Failed to parse event as JSON or get ts_ms: " + event);
+                                                    return 0L;
+                                                }
+                                            }
+                                            return 0L;
+                                        }
+                                ),
+                        "kfk_log_source"
+                ).uid("sourceLog")
+                .name("sourceLog");
+
+//        sourceLog.print();
+
+        SingleOutputStreamOperator<JSONObject> dataPageLogConvertJsonDs = sourceLog.map(JSON::parseObject)
+                .uid("convert json page log")
+                .name("convert json page log");
+
+
+        // 设备信息 + 关键词搜索
+        SingleOutputStreamOperator<JSONObject> logDeviceInfoDs = dataPageLogConvertJsonDs.map(new MapDeviceInfoAndSearchKetWordMsgFunc())
+                .uid("get device info & search")
+                .name("get device info & search");
+
+//        logDeviceInfoDs.print();
+
         SingleOutputStreamOperator<JSONObject> kfk_source = kfk_cdc_source.map(JSONObject::parseObject)
                 .uid("parseObject")
                 .name("parseObject");
@@ -116,6 +227,30 @@ public class DbusUserInfo6BaseLabel {
         SingleOutputStreamOperator<JSONObject> userinfoDs = kfk_source.filter(data -> data.getJSONObject("source").getString("table").equals("user_info"))
                 .uid("userinfoDs")
                 .name("userinfoDs");
+
+        SingleOutputStreamOperator<JSONObject> filterNotNullUidLogPageMsg = logDeviceInfoDs.filter(data -> !data.getString("uid").isEmpty());
+        KeyedStream<JSONObject, String> keyedStreamLogPageMsg = filterNotNullUidLogPageMsg.keyBy(data -> data.getString("uid"));
+
+        SingleOutputStreamOperator<JSONObject> processStagePageLogDs = keyedStreamLogPageMsg.process(new ProcessFilterRepeatTsDataFunc());
+
+        SingleOutputStreamOperator<JSONObject> win2MinutesPageLogsDs = processStagePageLogDs.keyBy(data -> data.getString("uid"))
+                .process(new AggregateUserDataProcessFunction())
+                .keyBy(data -> data.getString("uid"))
+                .window(TumblingProcessingTimeWindows.of(Time.minutes(2)))
+                .reduce((value1, value2) -> value2)
+                .uid("win 2 minutes page count msg")
+                .name("win 2 minutes page count msg");
+
+//        win2MinutesPageLogsDs.print();
+//{"uid":"470","os":"Android","ch":"xiaomi","pv":4,"md":"vivo IQOO Z6x ","search_item":"心相印纸抽","ba":"vivo"}
+
+
+        // 设备打分模型
+        win2MinutesPageLogsDs.map(new MapDeviceAndSearchMarkModelFunc(dim_base_categories,device_rate_weight_coefficient,search_rate_weight_coefficient))
+                .print();
+//{"device_35_39":0.04,"os":"iOS","device_50":0.02,"search_25_29":0,"ch":"Appstore","pv":1,"device_30_34":0.05,"device_18_24":0.07,"search_50":0,"search_40_49":0,"uid":"249","device_25_29":0.06,"md":"iPhone 14 Plus","search_18_24":0,"judge_os":"iOS","search_35_39":0,"device_40_49":0.03,"search_item":"","ba":"iPhone","search_30_34":0}
+
+
 
 //        userinfoDs.print();
 //        {"op":"c","after":{"birthday":12516,"gender":"M","create_time":1744133347000,"login_name":"8o958y5","nick_name":"富顺","name":"乐富顺","user_level":"1","phone_num":"13736681181","id":584,"email":"8o958y5@263.net"},"source":{"thread":934,"server_id":1,"version":"1.9.7.Final","file":"mysql-bin.000053","connector":"mysql","pos":3365754,"name":"mysql_binlog_source","row":0,"ts_ms":1746437347000,"snapshot":"false","db":"realtime_v1","table":"user_info"},"ts_ms":1747055322190}
@@ -219,7 +354,7 @@ public class DbusUserInfo6BaseLabel {
                 .between(Time.minutes(-5), Time.minutes(5))
                 .process(new IntervalJoinUserInfoLabelProcessFunc());
 
-        processIntervalJoinUserInfo6BaseMessageDs.print();
+//        processIntervalJoinUserInfo6BaseMessageDs.print();
 
         env.execute();
 
