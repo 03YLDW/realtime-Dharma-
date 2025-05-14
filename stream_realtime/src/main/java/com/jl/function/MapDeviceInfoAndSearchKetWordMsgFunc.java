@@ -3,12 +3,7 @@ package com.jl.function;
 import com.alibaba.fastjson.JSONObject;
 import org.apache.flink.api.common.functions.RichMapFunction;
 
-/**
- * @Package com.retailersv1.func.MapDeviceInfoAndSearchKetWordMsg
- * @Author zhou.han
- * @Date 2025/5/13 10:51
- * @description: page log 设备信息处理
- */
+//设备信息处理
 public class MapDeviceInfoAndSearchKetWordMsgFunc extends RichMapFunction<JSONObject,JSONObject> {
     @Override
     public JSONObject map(JSONObject jsonObject) throws Exception {

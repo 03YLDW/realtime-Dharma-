@@ -12,12 +12,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.HashSet;
 
-/**
- * @Package com.retailersv1.func.ProcessFullDataDeduplication
- * @Author
- * @Date
- * @description: 对完整数据进行去重
- */
+
 public class ProcessFilterRepeatTsDataFunc extends KeyedProcessFunction<String, JSONObject, JSONObject> {
 
     private static final Logger LOG = LoggerFactory.getLogger(ProcessFilterRepeatTsDataFunc.class);

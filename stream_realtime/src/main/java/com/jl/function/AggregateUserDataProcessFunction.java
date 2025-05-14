@@ -16,12 +16,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
-/**
- * @Package com.retailersv1.func.AggregateUserDataProcessFunction
- * @Author zhou.han
- * @Date 2025/5/13 16:28
- * @description:
- */
+
 public class AggregateUserDataProcessFunction extends KeyedProcessFunction<String, JSONObject,JSONObject> {
 
     private transient ValueState<Long> pvState;

@@ -16,12 +16,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * @Package com.retailersv1.func.MapDeviceMarkModel
- * @Author zhou.han
- * @Date 2025/5/13 21:34
- * @description: 设备打分模型
- */
+
 public class MapDeviceAndSearchMarkModelFunc extends RichMapFunction<JSONObject,JSONObject> {
 
     private final double deviceRate;

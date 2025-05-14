@@ -3,12 +3,7 @@ package com.jl.utils;
 
 import static com.jl.utils.SiliconFlowApi.generateBadReview;
 
-/**
- * @Package com.stream.utils.CommonGenerateTempLate
- * @Author zhou.han
- * @Date 2025/3/16 19:43
- * @description: TempLate
- */
+
 public class CommonGenerateTempLate {
 
     private static final String COMMENT_TEMPLATE = "生成一个电商%s,商品名称为%s,20字数以内,%s不需要思考过程 ";

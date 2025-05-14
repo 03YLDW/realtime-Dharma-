@@ -44,6 +44,7 @@ public class DbusUserInfo6BaseLabel {
                     "jdbc:mysql://cdh03:3306",
                     "root",
                         "root");
+            //将一级品类表 二级品类表  三级品类表 关联
             String sql = "select b3.id,                          \n" +
                     "            b3.name as b3name,              \n" +
                     "            b2.name as b2name,              \n" +
@@ -53,18 +54,13 @@ public class DbusUserInfo6BaseLabel {
                     "     on b3.category2_id = b2.id             \n" +
                     "     join realtime_v1.base_category1 as b1  \n" +
                     "     on b2.category1_id = b1.id";
+            //封装到实体类中
             dim_base_categories = JdbcUtils.queryList2(connection, sql, DimBaseCategory.class, false);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
 
     }
-
-
-
-
-
-
 
     public static void main(String[] args) throws Exception {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
@@ -127,7 +123,7 @@ public class DbusUserInfo6BaseLabel {
                                 // 代码逻辑：
                                 //将原始数据（String 类型）解析为 JSONObject。
                                 //检查是否存在 ts_ms 字段，并尝试将其转为 long 类型时间戳。
-                                //若解析失败（如字段缺失或格式错误），打印错误日志并返回 0L（需注意这可能引发后续计算问题）。
+                                //若解析失败（如字段缺失或格式错误），打印错误日志并返回 0L。
                                 .withTimestampAssigner((event, timestamp) -> {
 
                                             JSONObject jsonObject = JSONObject.parseObject(event);
@@ -151,35 +147,7 @@ public class DbusUserInfo6BaseLabel {
                 ).uid("kfk_cdc_db_source")
                 .name("kfk_cdc_db_source");
 
-//        kfk_cdc_source.print();
-
-        //读取topic_log
-//        {
-//            "common": {
-//            "ar": "1",
-//                    "ba": "iPhone",
-//                    "ch": "Appstore",
-//                    "is_new": "0",
-//                    "md": "iPhone 14",
-//                    "mid": "mid_389",
-//                    "os": "iOS 13.3.1",
-//                    "sid": "93171837-27ca-47f1-880e-62f08fa622f6",
-//                    "vc": "v2.1.134"
-//        },
-//            "start": {
-//            "entry": "icon",
-//                    "loading_time": 14804,
-//                    "open_ad_id": 8,
-//                    "open_ad_ms": 3561,
-//                    "open_ad_skip_ms": 0
-//        },
-//            "ts": 1744104535000
-//        }
-
-
-//        kfk_cdc_source.print();
-//          将数据转换成 JSONObject                                            JSONObject.parseObject(data) <====> JSON::parseObject
-//        读取 日志数据   topic_log
+        //  读取topic_db
         SingleOutputStreamOperator<String> sourceLog = env.fromSource(
                         KafkaUtils.buildKafkaSecureSource(
                                 "cdh01:9092",
@@ -208,27 +176,25 @@ public class DbusUserInfo6BaseLabel {
 
 //        sourceLog.print();
 
+
+
         SingleOutputStreamOperator<JSONObject> dataPageLogConvertJsonDs = sourceLog.map(JSON::parseObject)
                 .uid("convert json page log")
                 .name("convert json page log");
 
 
-        // 设备信息 + 关键词搜索
+
+        //todo 设备信息 + 关键词搜索
+
+        //设备信息处理
         SingleOutputStreamOperator<JSONObject> logDeviceInfoDs = dataPageLogConvertJsonDs.map(new MapDeviceInfoAndSearchKetWordMsgFunc())
                 .uid("get device info & search")
                 .name("get device info & search");
 
-//        logDeviceInfoDs.print();
-
-        SingleOutputStreamOperator<JSONObject> kfk_source = kfk_cdc_source.map(JSONObject::parseObject)
-                .uid("parseObject")
-                .name("parseObject");
-        // 过滤出 user_info
-        SingleOutputStreamOperator<JSONObject> userinfoDs = kfk_source.filter(data -> data.getJSONObject("source").getString("table").equals("user_info"))
-                .uid("userinfoDs")
-                .name("userinfoDs");
-
+        //        logDeviceInfoDs.print();
         SingleOutputStreamOperator<JSONObject> filterNotNullUidLogPageMsg = logDeviceInfoDs.filter(data -> !data.getString("uid").isEmpty());
+
+
         KeyedStream<JSONObject, String> keyedStreamLogPageMsg = filterNotNullUidLogPageMsg.keyBy(data -> data.getString("uid"));
 
         SingleOutputStreamOperator<JSONObject> processStagePageLogDs = keyedStreamLogPageMsg.process(new ProcessFilterRepeatTsDataFunc());
@@ -244,12 +210,19 @@ public class DbusUserInfo6BaseLabel {
 //        win2MinutesPageLogsDs.print();
 //{"uid":"470","os":"Android","ch":"xiaomi","pv":4,"md":"vivo IQOO Z6x ","search_item":"心相印纸抽","ba":"vivo"}
 
-
-        // 设备打分模型
+        //todo 设备打分模型
         win2MinutesPageLogsDs.map(new MapDeviceAndSearchMarkModelFunc(dim_base_categories,device_rate_weight_coefficient,search_rate_weight_coefficient))
                 .print();
 //{"device_35_39":0.04,"os":"iOS","device_50":0.02,"search_25_29":0,"ch":"Appstore","pv":1,"device_30_34":0.05,"device_18_24":0.07,"search_50":0,"search_40_49":0,"uid":"249","device_25_29":0.06,"md":"iPhone 14 Plus","search_18_24":0,"judge_os":"iOS","search_35_39":0,"device_40_49":0.03,"search_item":"","ba":"iPhone","search_30_34":0}
 
+
+        SingleOutputStreamOperator<JSONObject> kfk_source = kfk_cdc_source.map(JSONObject::parseObject)
+                .uid("parseObject")
+                .name("parseObject");
+        // 过滤出 user_info
+        SingleOutputStreamOperator<JSONObject> userinfoDs = kfk_source.filter(data -> data.getJSONObject("source").getString("table").equals("user_info"))
+                .uid("userinfoDs")
+                .name("userinfoDs");
 
 
 //        userinfoDs.print();
@@ -322,7 +295,7 @@ public class DbusUserInfo6BaseLabel {
         });
 //        newUserInfoDs.print();
 //{"birthday":"2007-06-08","decade":2000,"login_name":"nla0rjjhu1","gender":"M","constellation":"双子座","name":"令狐文","user_level":"1","phone_num":"13468892149","id":"377","email":"nla0rjjhu1@googlemail.com","ts_ms":"1745903788000","age":17}
-
+        //TODO  user_info_sup_msg 获取身高，体重
         SingleOutputStreamOperator<JSONObject> userSupMsgDs = user_info_sup_msg.map(new RichMapFunction<JSONObject, JSONObject>() {
             @Override
             public JSONObject map(JSONObject value) {
@@ -346,7 +319,7 @@ public class DbusUserInfo6BaseLabel {
         // 过滤掉uid为空的数据
         SingleOutputStreamOperator<JSONObject> finalUserinfoDs = newUserInfoDs.filter(data -> data.containsKey("uid") && !data.getString("uid").isEmpty());
         SingleOutputStreamOperator<JSONObject> finalUserinfoSupDs = userSupMsgDs.filter(data -> data.containsKey("uid") && !data.getString("uid").isEmpty());
-
+        //分组
         KeyedStream<JSONObject, String> keyedStreamUserInfoDs = finalUserinfoDs.keyBy(data -> data.getString("uid"));
         KeyedStream<JSONObject, String> keyedStreamUserInfoSupDs = finalUserinfoSupDs.keyBy(data -> data.getString("uid"));
 

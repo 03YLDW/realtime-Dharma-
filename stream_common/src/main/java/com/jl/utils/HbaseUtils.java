@@ -20,9 +20,6 @@ import java.util.Iterator;
 import java.util.Map;
 
 /**
- * @author han.zhou
- * @time: 2021/10/14 11:39
- * @className: HBaseUtils
  * @description HBase 工具类
  */
 public class HbaseUtils {

@@ -10,12 +10,7 @@ import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
 
 
-/**
- * @Package com.retailersv1.func.UserInfoMessageDeduplicateProcessFunc
- * @Author zhou.han
- * @Date 2025/5/12 13:57
- * @description: UserInfo 数据去重
- */
+
 public class UserInfoMessageDeduplicateProcessFunc extends KeyedProcessFunction<Long, JSONObject,JSONObject> {
 
     private ValueState<Long> latestTsState;

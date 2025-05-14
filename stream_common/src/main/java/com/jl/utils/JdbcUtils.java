@@ -8,9 +8,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * @Package com.stream.common.utils.JdbcUtils
- * @Author zhou.han
- * @Date 2024/12/20 08:51
  * @description: MySQL Utils
  */
 public class JdbcUtils {

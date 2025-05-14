@@ -8,12 +8,7 @@ import com.ververica.cdc.debezium.JsonDebeziumDeserializationSchema;
 
 import java.util.Properties;
 
-/**
- * @Package com.stream.common.utils.CdcSourceUtils
- * @Author zhou.han
- * @Date 2024/12/17 11:49
- * @description: MySQL Cdc Source
- */
+
 public class CdcSourceUtils {
 
     public static MySqlSource<String> getMySQLCdcSource(String database,String table,String username,String pwd,StartupOptions model){
