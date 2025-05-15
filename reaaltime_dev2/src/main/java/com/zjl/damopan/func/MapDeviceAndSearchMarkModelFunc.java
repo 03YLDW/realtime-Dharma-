@@ -15,12 +15,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * @Package com.xwz.retail.v2.reaktime.func.MapDeviceAndSearchMarkModelFunc
- * @Author Wenzhen.Xie
- * @Date 2025/5/14 22:22
- * @description: MapDeviceAndSearchMarkModelFunc
- */
+
 public class MapDeviceAndSearchMarkModelFunc extends RichMapFunction<JSONObject,JSONObject> {
 
     private final double deviceRate;

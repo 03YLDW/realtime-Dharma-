@@ -21,12 +21,6 @@ import java.time.Period;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 
-/**
- * @Package com.xwz.retail.v1.realtime.app.dwd.DwdBaseLog
- * @Author Wenzhen.Xie
- * @Date 2025/5/12 16:53
- * @description: DwdBaseLog
- */
 
 public class UserSixBaseDb {
     public static void main(String[] args) throws Exception {

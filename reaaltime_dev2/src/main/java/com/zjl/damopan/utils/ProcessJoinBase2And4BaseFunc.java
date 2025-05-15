@@ -7,12 +7,7 @@ import org.apache.flink.util.Collector;
 import java.util.ArrayList;
 import java.util.Collections;
 
-/**
- * @Package com.label.func.Join2_4Process
- * @Author zhou.han
- * @Date 2025/5/15 16:06
- * @description:
- */
+
 public class ProcessJoinBase2And4BaseFunc extends ProcessJoinFunction<JSONObject, JSONObject, JSONObject> {
 
     private static final String[] list2 = {"18_24", "25_29", "30_34", "35_39", "40_49", "50"};

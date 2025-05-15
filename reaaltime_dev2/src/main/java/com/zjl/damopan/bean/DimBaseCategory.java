@@ -6,12 +6,7 @@ import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 
-/**
- * @Package com.xwz.retail.v2.reaktime.bean.DimBaseCategory
- * @Author Wenzhen.Xie
- * @Date 2025/5/14 19:33
- * @description: DimBaseCategory
- */
+
 @AllArgsConstructor
 @NoArgsConstructor
 @Data

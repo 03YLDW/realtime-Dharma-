@@ -9,12 +9,6 @@ import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 
 
-/**
- * @Package com.xwz.retail.v1.realtime.app.ods.MysqlToKafka
- * @Author Wenzhen.Xie
- * @Date 2025/5/12 16:25、.
- * @description: MysqlToKafka
- */
 
 public class MysqlToKafka {
     public static void main(String[] args) throws Exception {

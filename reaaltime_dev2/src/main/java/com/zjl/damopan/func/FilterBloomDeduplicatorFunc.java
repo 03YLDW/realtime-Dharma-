@@ -12,12 +12,7 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
 
-/**
- * @Package  com.xwz.retail.v2.reaktime.func.FilterBloomDeduplicatorFunc
- * @Author Wenzhen.Xie
- * @Date 2025/5/13 16:03
- * @description: 布隆过滤器
- */
+
 public class FilterBloomDeduplicatorFunc extends RichFilterFunction<JSONObject> {
 
     private static final Logger logger = LoggerFactory.getLogger(FilterBloomDeduplicatorFunc.class);

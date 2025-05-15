@@ -12,12 +12,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.HashSet;
 
-/**
- * @Package com.xwz.retail.v2.reaktime.func.ProcessFilterRepeatTsData
- * @Author Wenzhen.Xie
- * @Date 2025/5/13 18:44
- * @description: ProcessFilterRepeatTsData
- */
+
 public class ProcessFilterRepeatTsData extends KeyedProcessFunction<String, JSONObject, JSONObject> {
     private static final Logger LOG = LoggerFactory.getLogger(ProcessFilterRepeatTsData.class);
     private ValueState<HashSet<String>> processedDataState;

@@ -9,12 +9,7 @@ import java.math.RoundingMode;
 import java.sql.Connection;
 import java.util.List;
 
-/**
- * @Package com.xwz.retail.v2.reaktime.func.MapCategoryAndTrademarkAndPriceAndTimeFunc
- * @Author Wenzhen.Xie
- * @Date 2025/5/14 22:52
- * @description: MapCategoryAndTrademarkAndPriceAndTimeFunc
- */
+
 public class MapCategoryAndTrademarkAndPriceAndTimeFunc extends RichMapFunction<JSONObject,JSONObject> {
 
     private Connection connection;

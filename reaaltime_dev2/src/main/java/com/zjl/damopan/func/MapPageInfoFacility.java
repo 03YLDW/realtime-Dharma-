@@ -3,12 +3,7 @@ package com.zjl.damopan.func;
 import com.alibaba.fastjson.JSONObject;
 import org.apache.flink.api.common.functions.RichMapFunction;
 
-/**
- * @Package com.xwz.retail.v2.reaktime.func.MapPageInfoFacility
- * @Author Wenzhen.Xie
- * @Date 2025/5/13 16:49
- * @description: MapPageInfoFacility
- */
+
 public class MapPageInfoFacility extends RichMapFunction<JSONObject, JSONObject> {
     @Override
     public JSONObject map(JSONObject jsonObject) {

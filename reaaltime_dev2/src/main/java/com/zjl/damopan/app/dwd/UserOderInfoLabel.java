@@ -25,12 +25,7 @@ import java.time.Duration;
 import java.util.Date;
 import java.util.List;
 
-/**
- * @Package com.xwz.retail.v2.reaktime.app.dwd.UserOderInfoLabel
- * @Author Wenzhen.Xie
- * @Date 2025/5/14 18:10
- * @description:
- */
+
 
 public class UserOderInfoLabel {
     private static final List<DimBaseCategory> dim_base_categories;

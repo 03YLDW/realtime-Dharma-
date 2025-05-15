@@ -26,12 +26,6 @@ import org.apache.flink.util.OutputTag;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * @Package com.xwz.retail.v1.realtime.app.dwd.DwdBaseLog
- * @Author Wenzhen.Xie
- * @Date 2025/4/11 10:35
- * @description: DwdBaseLog
- */
 
 public class DwdBaseLog {
 

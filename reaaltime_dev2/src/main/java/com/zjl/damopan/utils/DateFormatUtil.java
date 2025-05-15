@@ -8,12 +8,8 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
 
-/**
- * @author Felix
- * @date 2025/5/4
- * 注意：使用SimpleDateFormat进行日期转换的话，存在线程安全的问题
- * 建议封装日期工具类的时候，使用jdk1.8提供的日期包下的类完成相关功能
- */
+
+
 public class DateFormatUtil {
     private static final DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter dtfForPartition = DateTimeFormatter.ofPattern("yyyyMMdd");

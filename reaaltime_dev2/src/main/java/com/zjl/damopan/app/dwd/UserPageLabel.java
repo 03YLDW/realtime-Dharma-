@@ -23,12 +23,6 @@ import java.sql.Connection;
 import java.time.Duration;
 import java.util.List;
 
-/**
- * @Package com.xwz.retail.v2.reaktime.app.dwd.UserPageLabel
- * @Author Wenzhen.Xie
- * @Date 2025/5/14 18:10
- * @description:
- */
 
 public class UserPageLabel {
     private static final List<DimBaseCategory> dim_base_categories;

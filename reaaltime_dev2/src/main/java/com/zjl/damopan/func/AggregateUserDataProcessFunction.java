@@ -16,12 +16,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
-/**
- * @Package com.xwz.retail.v2.reaktime.func.AggregateUserDataProcessFunction
- * @Author Wenzhen.Xie
- * @Date 2025/5/13 18:45
- * @description: AggregateUserDataProcessFunction
- */
+
 public class AggregateUserDataProcessFunction extends KeyedProcessFunction<String, JSONObject,JSONObject> {
 
     private transient ValueState<Long> pvState;

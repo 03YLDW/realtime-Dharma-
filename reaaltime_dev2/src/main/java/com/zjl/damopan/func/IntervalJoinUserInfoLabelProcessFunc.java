@@ -4,12 +4,6 @@ import com.alibaba.fastjson.JSONObject;
 import org.apache.flink.streaming.api.functions.co.ProcessJoinFunction;
 import org.apache.flink.util.Collector;
 
-/**
- * @Package com.xwz.retail.v2.reaktime.func.IntervalJoinUserInfoLabelProcessFunc
- * @Author Wenzhen.Xie
- * @Date 2025/5/13 14:37
- * @description:
- */
 
 public class IntervalJoinUserInfoLabelProcessFunc extends ProcessJoinFunction<JSONObject,JSONObject,JSONObject> {
     @Override

@@ -7,12 +7,7 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * @Package com.stream.common.utils.JdbcUtils
- * @Author zhou.han
- * @Date 2024/12/20 08:51
- * @description: MySQL Utils
- */
+
 public class JdbcUtils {
 
     public static Connection getMySQLConnection(String mysqlUrl,String username,String pwd) throws Exception {
