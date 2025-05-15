@@ -79,7 +79,8 @@ public class AggregateUserDataProcessFunction extends KeyedProcessFunction<Strin
         output.put("md", String.join(",", getField("md")));
         output.put("ba", String.join(",", getField("ba")));
         output.put("search_item", String.join(",", getField("search_item")));
-
+        String tsMs = value.getString("ts");
+        output.put("ts_ms",tsMs);
         out.collect(output);
     }
 

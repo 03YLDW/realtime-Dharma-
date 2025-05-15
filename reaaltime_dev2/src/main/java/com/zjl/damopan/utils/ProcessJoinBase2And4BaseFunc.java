@@ -38,28 +38,28 @@ public class ProcessJoinBase2And4BaseFunc extends ProcessJoinFunction<JSONObject
 
         JSONObject payTimeWeight = new JSONObject();
         for (String s : list4) {
-            double v = left.getDoubleValue("pay_time_" + s);
+            double v = right.getDoubleValue("pay_time_" + s);
             String s1 = s.replace("-", "_");
             payTimeWeight.put(s1, v);
         }
 
         JSONObject b1nameWeight = new JSONObject();
         for (String s : list4) {
-            double v = left.getDoubleValue("b1name_" + s);
+            double v = right.getDoubleValue("b1name_" + s);
             String s1 = s.replace("-", "_");
             b1nameWeight.put(s1, v);
         }
 
         JSONObject tnameWeight = new JSONObject();
         for (String s : list4) {
-            double v = left.getDoubleValue("tname_" + s);
+            double v = right.getDoubleValue("tname_" + s);
             String s1 = s.replace("-", "_");
             tnameWeight.put(s1, v);
         }
 
         JSONObject amountWeight = new JSONObject();
         for (String s : list4) {
-            double v = left.getDoubleValue("amount_" + s);
+            double v = right.getDoubleValue("amount_" + s);
             String s1 = s.replace("-", "_");
             amountWeight.put(s1, v);
         }
@@ -68,15 +68,18 @@ public class ProcessJoinBase2And4BaseFunc extends ProcessJoinFunction<JSONObject
         JSONObject result = new JSONObject();
         String uid = left.getString("uid");
         String ts_ms = left.getString("ts_ms");
+
         result.put("uid",uid);
         result.put("ts_ms",ts_ms);
 
         String ageLevel = getAgeLevel(searchWeight, deviceWeight, payTimeWeight, b1nameWeight, tnameWeight, amountWeight);
         result.put("ageLevel",ageLevel);
+
         collector.collect(result);
 
     }
     public static String getAgeLevel(JSONObject search,JSONObject device,JSONObject payTime,JSONObject b1name,JSONObject tname, JSONObject amount){
+        //存放  不同年龄段权重的值
         ArrayList<Double> codes = new ArrayList<>();
         for (String s : list2) {
             Double v=search.getDoubleValue(s)
@@ -89,7 +92,7 @@ public class ProcessJoinBase2And4BaseFunc extends ProcessJoinFunction<JSONObject
         }
         Double max = Collections.max(codes);
         int i = codes.indexOf(max);
-        return list2[i];
+        return  list2[i];
 
 
     }

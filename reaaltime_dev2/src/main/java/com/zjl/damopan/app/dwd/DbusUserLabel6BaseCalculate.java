@@ -25,9 +25,9 @@ import java.util.Date;
  */
 public class DbusUserLabel6BaseCalculate {
     private static final String kafka_botstrap_servers = "cdh01:9092";
-    private static final String kafka_label_base6_topic = "";
+    private static final String kafka_label_base6_topic = "dwd_base6_label";
     private static final String kafka_label_base4_topic = "dwd_order_info_base_label";
-    private static final String kafka_label_base2_topic = "";
+    private static final String kafka_label_base2_topic = "dwd_page_info_base_lebel";
 
     @SneakyThrows
     public static void main(String[] args) {
@@ -121,20 +121,21 @@ public class DbusUserLabel6BaseCalculate {
 
 
         SingleOutputStreamOperator<JSONObject> join2_4Ds = mapBase2LabelDs.keyBy(o -> o.getString("uid"))
-                .intervalJoin(mapBase4LabelDs.keyBy(o -> o.getString("uid")))
-                .between(Time.hours(-24), Time.hours(24))
+                .intervalJoin(mapBase4LabelDs.keyBy(o -> o.getString("user_id")))
+                .between(Time.days(-5), Time.days(5))
                 .process(new ProcessJoinBase2And4BaseFunc());
 
         SingleOutputStreamOperator<JSONObject> waterJoin2_4 = join2_4Ds.assignTimestampsAndWatermarks(
                 WatermarkStrategy.<JSONObject>forBoundedOutOfOrderness(Duration.ofSeconds(5))
                 .withTimestampAssigner((SerializableTimestampAssigner<JSONObject>) (jsonObject, l) -> jsonObject.getLongValue("ts_ms")));
 
-        SingleOutputStreamOperator<JSONObject> userLabelProcessDs = waterJoin2_4.keyBy(o -> o.getString("uid"))
+        SingleOutputStreamOperator<JSONObject> userLabelProcessDs = waterJoin2_4
+                .keyBy(o -> o.getString("uid"))
                 .intervalJoin(mapBase6LabelDs.keyBy(o -> o.getString("uid")))
-                .between(Time.hours(-24), Time.hours(24))
+                .between(Time.days(-5), Time.days(5))
                 .process(new ProcessLabelFunc());
 
-
+//        join2_4Ds.print();
         userLabelProcessDs.print();
 
 

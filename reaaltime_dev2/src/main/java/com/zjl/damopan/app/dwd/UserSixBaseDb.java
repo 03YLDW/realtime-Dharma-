@@ -3,6 +3,7 @@ package com.zjl.damopan.app.dwd;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.jl.constant.Constant;
+import com.jl.utils.FlinkSinkUtil;
 import com.jl.utils.FlinkSourceUtil;
 import com.zjl.damopan.func.IntervalJoinUserInfoLabelProcessFunc;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
@@ -160,7 +161,7 @@ public class UserSixBaseDb {
                 .process(new IntervalJoinUserInfoLabelProcessFunc());
 
             processIntervalJoinUserInfo6BaseMessageDs.print();
-
+        processIntervalJoinUserInfo6BaseMessageDs.map(JSONObject::toString).sinkTo(FlinkSinkUtil.getKafkaSink("dwd_base6_label"));
 
         env.execute("UserSixBaseDb");
     }
