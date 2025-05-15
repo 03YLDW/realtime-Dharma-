@@ -400,7 +400,7 @@ public class DbusUserInfo6BaseLabel {
                         if (value.containsKey("after") && value.getJSONObject("after") != null ) {
                             JSONObject after = value.getJSONObject("after");
                             jsonObject.put("id", after.getString("id"));
-                            jsonObject.put("name", after.getString("name"));
+                            jsonObject.put("category_name", after.getString("name"));
                         }
 
                         return jsonObject;
