@@ -12,7 +12,7 @@ public class IntervalJoinCategory3LabelProcessFunc extends ProcessJoinFunction<J
 
         if (left.getString("category3_id").equals(right.getString("id"))){
             result.putAll(left);
-            result.put("name",right.getString("name"));
+            result.put("category_name",right.getString("category_name"));
         }
         out.collect(result);
 
