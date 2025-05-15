@@ -17,78 +17,79 @@ import java.util.HashSet;
 import java.util.Set;
 
 
-public class AggregateUserDataProcessFunction extends KeyedProcessFunction<String, JSONObject,JSONObject> {
+    public class AggregateUserDataProcessFunction extends KeyedProcessFunction<String, JSONObject,JSONObject> {
 
-    private transient ValueState<Long> pvState;
-    private transient MapState<String, Set<String>> fieldsState;
-
-
-    @Override
-    public void open(Configuration parameters) throws Exception {
-        // 初始化PV状态
-        pvState = getRuntimeContext().getState(
-                new ValueStateDescriptor<>("pv-state", Long.class)
-        );
-
-        // 初始化字段集合状态（使用TypeHint保留泛型信息）
-        MapStateDescriptor<String, Set<String>> fieldsDescriptor =
-                new MapStateDescriptor<>(
-                        "fields-state",
-                        Types.STRING,
-                        TypeInformation.of(new TypeHint<Set<String>>() {})
-                );
-
-        fieldsState = getRuntimeContext().getMapState(fieldsDescriptor);
-    }
+        private transient ValueState<Long> pvState;
+        private transient MapState<String, Set<String>> fieldsState;
 
 
-    @Override
-    public void processElement(JSONObject value, Context ctx, Collector<JSONObject> out) throws Exception {
-        // 更新PV
-        Long pv = pvState.value() == null ? 1L : pvState.value() + 1;
-        pvState.update(pv);
+        @Override
+        public void open(Configuration parameters) throws Exception {
+            // 初始化PV状态   初始状态下，pvState 是空的
+            pvState = getRuntimeContext().getState(
+                    new ValueStateDescriptor<>("pv-state", Long.class)
+            );
 
-        // 提取设备信息和搜索词
-        JSONObject deviceInfo = value.getJSONObject("deviceInfo");
-        String os = deviceInfo.getString("os");
-        String ch = deviceInfo.getString("ch");
-        String md = deviceInfo.getString("md");
-        String ba = deviceInfo.getString("ba");
-        String searchItem = value.containsKey("search_item") ? value.getString("search_item") : null;
+            // 初始化字段集合状态（使用TypeHint保留泛型信息）
+            MapStateDescriptor<String, Set<String>> fieldsDescriptor =
+                    new MapStateDescriptor<>(
+                            "fields-state",
+                            Types.STRING,
+                            TypeInformation.of(new TypeHint<Set<String>>() {})
+                    );
 
-        // 更新字段集合
-        updateField("os", os);
-        updateField("ch", ch);
-        updateField("md", md);
-        updateField("ba", ba);
-        if (searchItem != null) {
-            updateField("search_item", searchItem);
+            fieldsState = getRuntimeContext().getMapState(fieldsDescriptor);
         }
 
-        // 构建输出JSON
-        JSONObject output = new JSONObject();
-        output.put("uid", value.getString("uid"));
-        output.put("pv", pv);
-        output.put("os", String.join(",", getField("os")));
-        output.put("ch", String.join(",", getField("ch")));
-        output.put("md", String.join(",", getField("md")));
-        output.put("ba", String.join(",", getField("ba")));
-        output.put("search_item", String.join(",", getField("search_item")));
 
-        out.collect(output);
+        @Override
+        public void processElement(JSONObject value, Context ctx, Collector<JSONObject> out) throws Exception {
+            // 更新PV 初始状态下，pvState 是空的  所以第一次处理时，pv 会被初始化为 1，然后保存到 pvState 中
+            Long pv = pvState.value() == null ? 1L : pvState.value() + 1;
+            pvState.update(pv);    // 首次 pvState=1
+
+            // 提取设备信息和搜索词   提取设备信息中的 os、ch、md、ba，以及可选的 search_item
+            JSONObject deviceInfo = value.getJSONObject("deviceInfo");
+            String os = deviceInfo.getString("os");
+            String ch = deviceInfo.getString("ch");
+            String md = deviceInfo.getString("md");
+            String ba = deviceInfo.getString("ba");
+            String searchItem = value.containsKey("search_item") ? value.getString("search_item") : null;
+
+            // 更新字段集合
+            updateField("os", os);
+            updateField("ch", ch);
+            updateField("md", md);
+            updateField("ba", ba);
+            if (searchItem != null) {
+                updateField("search_item", searchItem);
+            }
+
+            // 构建输出JSON
+            JSONObject output = new JSONObject();
+            output.put("uid", value.getString("uid"));
+            output.put("pv", pv);
+            output.put("os", String.join(",", getField("os")));
+            output.put("ch", String.join(",", getField("ch")));
+            output.put("md", String.join(",", getField("md")));
+            output.put("ba", String.join(",", getField("ba")));
+            output.put("search_item", String.join(",", getField("search_item")));
+
+            out.collect(output);
+        }
+
+        // 辅助方法：更新字段集合
+        private void updateField(String field, String value) throws Exception {
+//            首先是一个
+            Set<String> set = fieldsState.get(field) == null ? new HashSet<>() : fieldsState.get(field);
+            set.add(value);
+            fieldsState.put(field, set);
+        }
+
+        // 辅助方法：获取字段集合
+        private Set<String> getField(String field) throws Exception {
+            return fieldsState.get(field) == null ? Collections.emptySet() : fieldsState.get(field);
+        }
+
+
     }
-
-    // 辅助方法：更新字段集合
-    private void updateField(String field, String value) throws Exception {
-        Set<String> set = fieldsState.get(field) == null ? new HashSet<>() : fieldsState.get(field);
-        set.add(value);
-        fieldsState.put(field, set);
-    }
-
-    // 辅助方法：获取字段集合
-    private Set<String> getField(String field) throws Exception {
-        return fieldsState.get(field) == null ? Collections.emptySet() : fieldsState.get(field);
-    }
-
-
-}

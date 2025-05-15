@@ -1,17 +1,15 @@
-package com.jl.dwd;
+package com.jl.Label;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.jl.bean.DimBaseCategory;
 import com.jl.function.*;
-import com.jl.utils.ConfigUtils;
 import com.jl.utils.JdbcUtils;
 import com.jl.utils.KafkaUtils;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsInitializer;
-import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -37,6 +35,14 @@ public class DbusUserInfo6BaseLabel {
 
     private static final double device_rate_weight_coefficient = 0.1; // 设备权重系数
     private static final double search_rate_weight_coefficient = 0.15; // 搜索权重系数
+
+    private static final double base_category_weight_coefficient = 0.3; // 类目权重系数
+    private static final double base_trademark_weight_coefficient = 0.2; // 品牌权重系数
+    private static final double price_weight_coefficient = 0.15; // 价格权重系数
+    private static final double time_weight_coefficient = 0.1; // 时间权重系数
+
+
+
 
     static {
         try {
@@ -64,7 +70,7 @@ public class DbusUserInfo6BaseLabel {
 
     public static void main(String[] args) throws Exception {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        env.setParallelism(1);
+        env.setParallelism(4);
 //topic_db数据
 //        {
 //            "before": null,
@@ -198,16 +204,23 @@ public class DbusUserInfo6BaseLabel {
         KeyedStream<JSONObject, String> keyedStreamLogPageMsg = filterNotNullUidLogPageMsg.keyBy(data -> data.getString("uid"));
 
         SingleOutputStreamOperator<JSONObject> processStagePageLogDs = keyedStreamLogPageMsg.process(new ProcessFilterRepeatTsDataFunc());
-
+//        processStagePageLogDs.print("wwwwwwwwwwwwwwwwwww");
+//                                                                                         keyBy将数据流按照uid分区，保证相同uid的数据进入同一个处理实例。此时数据还是多个记录，只是分区了。
         SingleOutputStreamOperator<JSONObject> win2MinutesPageLogsDs = processStagePageLogDs.keyBy(data -> data.getString("uid"))
+//                这个函数内部维护了每个uid的pv状态和字段集合。每次处理元素时，会更新pv和字段集合，
+//                然后输出一个包含当前状态的JSON对象。这里每次处理一条记录就会输出一次，所以输出可能还是多个相同uid的记录，但pv和字段集合会逐步累积。
                 .process(new AggregateUserDataProcessFunction())
+//                再次按uid分区，这一步可能不是必要的，因为数据已经被第一个keyBy分区过了，但可能因为后续的窗口操作需要重新分区。
                 .keyBy(data -> data.getString("uid"))
                 .window(TumblingProcessingTimeWindows.of(Time.minutes(2)))
+//                这里使用reduce函数，每次取最新的记录。由于窗口内的数据会被合并，最终每个窗口每个uid只会保留最后一条记录。
+//                导致 uid 唯一的操作
+//                关键操作：窗口（Window）与归约（Reduce）的组合
                 .reduce((value1, value2) -> value2)
                 .uid("win 2 minutes page count msg")
                 .name("win 2 minutes page count msg");
 
-//        win2MinutesPageLogsDs.print();
+//        win2MinutesPageLogsDs.print("wwwwwwwwwwwwwwwwwww");
 //{"uid":"470","os":"Android","ch":"xiaomi","pv":4,"md":"vivo IQOO Z6x ","search_item":"心相印纸抽","ba":"vivo"}
 
         //todo 设备打分模型
@@ -223,6 +236,225 @@ public class DbusUserInfo6BaseLabel {
         SingleOutputStreamOperator<JSONObject> userinfoDs = kfk_source.filter(data -> data.getJSONObject("source").getString("table").equals("user_info"))
                 .uid("userinfoDs")
                 .name("userinfoDs");
+
+
+        SingleOutputStreamOperator<JSONObject> orderinfoDs = kfk_source.filter(data -> data.getJSONObject("source").getString("table").equals("order_info"))
+                .uid("orderinfoDs")
+                .name("orderinfoDs");
+//        orderinfoDs.print("orderinfoDs------>");
+        SingleOutputStreamOperator<JSONObject> orderDetailDs = kfk_source.filter(data -> data.getJSONObject("source").getString("table").equals("order_detail"))
+                .uid("orderdetailDs")
+                .name("orderdetailDs");
+
+        // TODO: 2025/5/14  orderInfo  订单表
+        SingleOutputStreamOperator<JSONObject> orderInfoMap = orderinfoDs.map(new MapFunction<JSONObject, JSONObject>() {
+            @Override
+            public JSONObject map(JSONObject value) throws Exception {
+                JSONObject jsonObject = new JSONObject();
+                if (value.containsKey("after") && value.getJSONObject("after") != null ) {
+                    JSONObject after = value.getJSONObject("after");
+                    jsonObject.put("id", after.getString("id"));
+                    jsonObject.put("order_status", after.getString("order_status"));
+                    jsonObject.put("payment_way", after.getString("payment_way"));
+                    jsonObject.put("consignee", after.getString("consignee"));
+                    jsonObject.put("total_amount", after.getDouble("total_amount"));
+                    jsonObject.put("user_id", after.getString("user_id"));
+                    jsonObject.put("trade_body", after.getString("trade_body"));
+                    jsonObject.put("create_time", after.getString("create_time"));
+                    jsonObject.put("province_id", after.getString("province_id"));
+                    jsonObject.put("ts_ms", value.getString("ts_ms"));
+                }
+
+                return jsonObject;
+            }
+        }).filter(json -> !json.isEmpty())
+                .uid("orderInfoMap")
+                .name("orderInfoMap");
+
+//        orderInfoMap.print("orderInfoMap========>");
+        // TODO: 2025/5/14  orderDetail  订单明细
+        SingleOutputStreamOperator<JSONObject> orderDetailMap = orderDetailDs.map(new MapFunction<JSONObject, JSONObject>() {
+                    @Override
+                    public JSONObject map(JSONObject value) throws Exception {
+                        JSONObject jsonObject = new JSONObject();
+                        if (value.containsKey("after") && value.getJSONObject("after") != null ) {
+                            JSONObject after = value.getJSONObject("after");
+                            jsonObject.put("order_id", after.getString("order_id"));
+                            jsonObject.put("sku_id", after.getString("sku_id"));
+                            jsonObject.put("split_total_amount", after.getDouble("split_total_amount"));
+                        }
+                        return jsonObject;
+                    }
+                }).filter(json -> !json.isEmpty())
+                .uid("orderDetail")
+                .name("orderDetail");
+
+//        orderDetailMap.print("orderDetail========>");
+//        {"sku_id":"2","order_id":"1814","ts_ms":"1747055322011","split_total_amount":6499.0}
+        SingleOutputStreamOperator<JSONObject> finalOrderInfoDs = orderInfoMap.filter(data -> data.containsKey("id") && !data.getString("id").isEmpty());
+        SingleOutputStreamOperator<JSONObject> finalOrderDetailSupDs = orderDetailMap.filter(data -> data.containsKey("order_id") && !data.getString("order_id").isEmpty());
+        //分组
+        KeyedStream<JSONObject, String> keyedStreamOrderInfoDs = finalOrderInfoDs.keyBy(data -> data.getString("id"));
+        KeyedStream<JSONObject, String> keyedStreamOrderDetailDs = finalOrderDetailSupDs.keyBy(data -> data.getString("order_id"));
+        //订单表和订单明细关联
+        SingleOutputStreamOperator<JSONObject> processIntervalJoinOrderInfo6BaseMessageDs = keyedStreamOrderInfoDs.intervalJoin(keyedStreamOrderDetailDs)
+                .between(Time.minutes(-5), Time.minutes(5))
+                .process(new IntervalJoinOrderInfoLabelProcessFunc());
+
+//        processIntervalJoinOrderInfo6BaseMessageDs.print("processIntervalJoinOrderInfo6BaseMessageDs");
+//{"order_status":"1004","payment_way":"3501","consignee":"秦艺咏","create_time":"1744133348000","total_amount":17167.0,"user_id":"109","province_id":"1","trade_body":"小米12S Ultra 骁龙8+旗舰处理器 徕卡光学镜头 2K超视感屏 120Hz高刷 67W快充 12GB+512GB 冷杉绿 5G手机等3件商品","sku_id":"29","id":"2028","ts_ms":"1747055322307","split_total_amount":"69.0"}
+
+
+        // TODO: 2025/5/15 关联sku表
+
+
+        SingleOutputStreamOperator<JSONObject> skuInfoDs = kfk_source.filter(data -> data.getJSONObject("source").getString("table").equals("sku_info"))
+                .uid("skuInfoDs")
+                .name("skuInfoDs");
+
+        SingleOutputStreamOperator<JSONObject> skuInfoMap = skuInfoDs.map(new MapFunction<JSONObject, JSONObject>() {
+                    @Override
+                    public JSONObject map(JSONObject value) throws Exception {
+                        JSONObject jsonObject = new JSONObject();
+                        if (value.containsKey("after") && value.getJSONObject("after") != null ) {
+                            JSONObject after = value.getJSONObject("after");
+                            jsonObject.put("id", after.getString("id"));
+                            jsonObject.put("category3_id", after.getString("category3_id"));
+                            jsonObject.put("tm_id", after.getString("tm_id"));
+                        }
+
+                        return jsonObject;
+                    }
+                }).filter(json -> !json.isEmpty())
+                .uid("skuInfoMap")
+                .name("skuInfoMap");
+
+//                skuInfoMap.print("skuInfoMap");
+
+
+
+                SingleOutputStreamOperator<JSONObject> finalIntervalJoinOrderInfoDs = processIntervalJoinOrderInfo6BaseMessageDs.filter(data -> data.containsKey("sku_id") && !data.getString("sku_id").isEmpty());
+                SingleOutputStreamOperator<JSONObject> finalSkuInfoDs = skuInfoMap.filter(data -> data.containsKey("id") && !data.getString("id").isEmpty());
+                //分组
+                KeyedStream<JSONObject, String> keyedStreamIntervalJoinOrderInfoDs = finalIntervalJoinOrderInfoDs.keyBy(data -> data.getString("sku_id"));
+                KeyedStream<JSONObject, String> keyedStreamSkuInfoDs = finalSkuInfoDs.keyBy(data -> data.getString("id"));
+                //订单表和订单明细关联
+                SingleOutputStreamOperator<JSONObject> processIntervalJoinSkuInfoDs = keyedStreamIntervalJoinOrderInfoDs.intervalJoin(keyedStreamSkuInfoDs)
+                        .between(Time.minutes(-5), Time.minutes(5))
+                        .process(new IntervalJoinSkuInfoLabelProcessFunc());
+
+//                 processIntervalJoinSkuInfoDs.print("processIntervalJoinSkuInfoDs");
+
+        // TODO: 2025/5/15  关联品牌表
+
+
+        SingleOutputStreamOperator<JSONObject> trademarkDs = kfk_source.filter(data -> data.getJSONObject("source").getString("table").equals("base_trademark"))
+                .uid("trademarkDs")
+                .name("trademarkDs");
+
+        SingleOutputStreamOperator<JSONObject> trademarkMap = trademarkDs.map(new MapFunction<JSONObject, JSONObject>() {
+                    @Override
+                    public JSONObject map(JSONObject value) throws Exception {
+                        JSONObject jsonObject = new JSONObject();
+                        if (value.containsKey("after") && value.getJSONObject("after") != null ) {
+                            JSONObject after = value.getJSONObject("after");
+                            jsonObject.put("id", after.getString("id"));
+                            jsonObject.put("tm_name", after.getString("tm_name"));
+                        }
+
+                        return jsonObject;
+                    }
+                }).filter(json -> !json.isEmpty())
+                .uid("trademarkMap")
+                .name("trademarkMap");
+
+//                skuInfoMap.print("skuInfoMap");
+
+
+
+        SingleOutputStreamOperator<JSONObject> finalIntervalJoinSkuInfoDs = processIntervalJoinSkuInfoDs.filter(data -> data.containsKey("tm_id") && !data.getString("tm_id").isEmpty());
+        SingleOutputStreamOperator<JSONObject> finalTrademarkDs = trademarkMap.filter(data -> data.containsKey("id") && !data.getString("id").isEmpty());
+        //分组
+        KeyedStream<JSONObject, String> keyedStreamIntervalJoinSkuInfoDs = finalIntervalJoinSkuInfoDs.keyBy(data -> data.getString("tm_id"));
+        KeyedStream<JSONObject, String> keyedStreamTrademarkDs = finalTrademarkDs.keyBy(data -> data.getString("id"));
+        //订单表和订单明细关联
+        SingleOutputStreamOperator<JSONObject> processIntervalJoinTrademarkDs = keyedStreamIntervalJoinSkuInfoDs.intervalJoin(keyedStreamTrademarkDs)
+                .between(Time.minutes(-5), Time.days(5))
+                .process(new IntervalJoinTrademarkLabelProcessFunc());
+
+//        processIntervalJoinTrademarkDs.print("processIntervalJoinTrademarkDs");
+//{"payment_way":"3501","consignee":"秦艺咏","create_time":"1744133348000","sku_id":"16","tm_name":"联想","order_status":"1004","tm_id":"3","total_amount":17167.0,"user_id":"109","province_id":"1","trade_body":"小米12S Ultra 骁龙8+旗舰处理器 徕卡光学镜头 2K超视感屏 120Hz高刷 67W快充 12GB+512GB 冷杉绿 5G手机等3件商品","id":"2028","category3_id":"287","ts_ms":"1747055322307","split_total_amount":"10599.0"}
+
+
+        // TODO: 2025/5/15  关联 三级分类表
+
+
+        SingleOutputStreamOperator<JSONObject> category3Ds = kfk_source.filter(data -> data.getJSONObject("source").getString("table").equals("base_category3"))
+                .uid("category3Ds")
+                .name("category3Ds");
+
+        SingleOutputStreamOperator<JSONObject> category3Map = category3Ds.map(new MapFunction<JSONObject, JSONObject>() {
+                    @Override
+                    public JSONObject map(JSONObject value) throws Exception {
+                        JSONObject jsonObject = new JSONObject();
+                        if (value.containsKey("after") && value.getJSONObject("after") != null ) {
+                            JSONObject after = value.getJSONObject("after");
+                            jsonObject.put("id", after.getString("id"));
+                            jsonObject.put("name", after.getString("name"));
+                        }
+
+                        return jsonObject;
+                    }
+                }).filter(json -> !json.isEmpty())
+                .uid("category3Map")
+                .name("category3Map");
+
+//                skuInfoMap.print("skuInfoMap");
+
+
+
+        SingleOutputStreamOperator<JSONObject> finalIntervalJoinTrademarkDs = processIntervalJoinTrademarkDs.filter(data -> data.containsKey("category3_id") && !data.getString("category3_id").isEmpty());
+        SingleOutputStreamOperator<JSONObject> finalCategory3Ds = category3Map.filter(data -> data.containsKey("id") && !data.getString("id").isEmpty());
+        //分组
+        KeyedStream<JSONObject, String> keyedStreamIntervalJoinTrademarkDs = finalIntervalJoinTrademarkDs.keyBy(data -> data.getString("category3_id"));
+        KeyedStream<JSONObject, String> keyedStreamCategory3Ds = finalCategory3Ds.keyBy(data -> data.getString("id"));
+        //订单表和订单明细关联
+        SingleOutputStreamOperator<JSONObject> processIntervalJoinCategory3Ds= keyedStreamIntervalJoinTrademarkDs.intervalJoin(keyedStreamCategory3Ds)
+                .between(Time.minutes(-5), Time.days(5))
+                .process(new IntervalJoinCategory3LabelProcessFunc());
+
+        processIntervalJoinCategory3Ds.print("processIntervalJoinCategory3Ds");
+//{"payment_way":"3501","consignee":"于博诚","create_time":"1744133346000","sku_id":"14","tm_name":"联想","order_status":"1002","tm_id":"3","total_amount":11749.0,"user_id":"542","province_id":"14","name":"游戏本","trade_body":"联想（Lenovo） 拯救者Y9000P 2022 16英寸游戏笔记本电脑 i9-12900H RTX3070Ti 钛晶灰等1件商品","id":"2001","category3_id":"287","ts_ms":"1747055322186","split_total_amount":"11749.0"}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 //        userinfoDs.print();
@@ -327,7 +559,7 @@ public class DbusUserInfo6BaseLabel {
                 .between(Time.minutes(-5), Time.minutes(5))
                 .process(new IntervalJoinUserInfoLabelProcessFunc());
 
-//        processIntervalJoinUserInfo6BaseMessageDs.print();
+        processIntervalJoinUserInfo6BaseMessageDs.print();
 
         env.execute();
 

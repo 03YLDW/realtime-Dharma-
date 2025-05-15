@@ -41,7 +41,7 @@ public class MapDeviceAndSearchMarkModelFunc extends RichMapFunction<JSONObject,
                 "jdbc:mysql://cdh03:3306",
                 "root",
                 "root");
-        String sql = "select id, category_name, search_category from realtime_v1.category_compare_dic;";
+        String sql = "select id, category_name, search_category from realtime_v1.category_compare_dic;";// 加载分类对照表
         dimCategoryCompares = JdbcUtils.queryList2(connection, sql, DimCategoryCompare.class, true);
         super.open(parameters);
     }
