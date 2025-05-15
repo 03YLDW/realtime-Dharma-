@@ -12,6 +12,7 @@
     <modules>
         <module>stream_common</module>
         <module>stream_realtime</module>
+        <module>reaaltime_dev2</module>
     </modules>
 
 

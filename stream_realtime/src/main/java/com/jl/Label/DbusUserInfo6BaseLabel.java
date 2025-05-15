@@ -35,11 +35,10 @@ public class DbusUserInfo6BaseLabel {
 
     private static final double device_rate_weight_coefficient = 0.1; // 设备权重系数
     private static final double search_rate_weight_coefficient = 0.15; // 搜索权重系数
-
-    private static final double base_category_weight_coefficient = 0.3; // 类目权重系数
-    private static final double base_trademark_weight_coefficient = 0.2; // 品牌权重系数
-    private static final double price_weight_coefficient = 0.15; // 价格权重系数
-    private static final double time_weight_coefficient = 0.1; // 时间权重系数
+    private static final double time_rate_weight_coefficient = 0.1;    // 时间权重系数
+    private static final double amount_rate_weight_coefficient = 0.15;    // 价格权重系数
+    private static final double brand_rate_weight_coefficient = 0.2;    // 品牌权重系数
+    private static final double category_rate_weight_coefficient = 0.3; // 类目权重系数
 
 
 
@@ -72,41 +71,7 @@ public class DbusUserInfo6BaseLabel {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setParallelism(4);
 //topic_db数据
-//        {
-//            "before": null,
-//                "after": {
-//            "id": 2,
-//                    "activity_id": 1,
-//                    "activity_type": "3101",
-//                    "condition_amount": 8000.0,
-//                    "condition_num": null,
-//                    "benefit_amount": 900.0,
-//                    "benefit_discount": null,
-//                    "benefit_level": 2,
-//                    "create_time": 1644714512000,
-//                    "operate_time": null
-//        },
-//            "source": {
-//            "version": "1.9.7.Final",
-//                    "connector": "mysql",
-//                    "name": "mysql_binlog_source",
-//                    "ts_ms": 1744098486000,
-//                    "snapshot": "false",
-//                    "db": "realtime_v1",
-//                    "sequence": null,
-//                    "table": "activity_rule",
-//                    "server_id": 1,
-//                    "gtid": null,
-//                    "file": "mysql-bin.000001",
-//                    "pos": 794430,
-//                    "row": 0,
-//                    "thread": 129,
-//                    "query": null
-//        },
-//            "op": "c",
-//                "ts_ms": 1747055319968,
-//                "transaction": null
-//        }
+
 
 
         SingleOutputStreamOperator<String> kfk_cdc_source = env.fromSource(
@@ -224,8 +189,8 @@ public class DbusUserInfo6BaseLabel {
 //{"uid":"470","os":"Android","ch":"xiaomi","pv":4,"md":"vivo IQOO Z6x ","search_item":"心相印纸抽","ba":"vivo"}
 
         //todo 设备打分模型
-        win2MinutesPageLogsDs.map(new MapDeviceAndSearchMarkModelFunc(dim_base_categories,device_rate_weight_coefficient,search_rate_weight_coefficient))
-                .print();
+        SingleOutputStreamOperator<JSONObject>  equipmentMap = win2MinutesPageLogsDs.map(new MapDeviceAndSearchMarkModelFunc(dim_base_categories, device_rate_weight_coefficient, search_rate_weight_coefficient));
+
 //{"device_35_39":0.04,"os":"iOS","device_50":0.02,"search_25_29":0,"ch":"Appstore","pv":1,"device_30_34":0.05,"device_18_24":0.07,"search_50":0,"search_40_49":0,"uid":"249","device_25_29":0.06,"md":"iPhone 14 Plus","search_18_24":0,"judge_os":"iOS","search_35_39":0,"device_40_49":0.03,"search_item":"","ba":"iPhone","search_30_34":0}
 
 
@@ -400,7 +365,7 @@ public class DbusUserInfo6BaseLabel {
                         if (value.containsKey("after") && value.getJSONObject("after") != null ) {
                             JSONObject after = value.getJSONObject("after");
                             jsonObject.put("id", after.getString("id"));
-                            jsonObject.put("category_name", after.getString("name"));
+                            jsonObject.put("category2_id", after.getString("category2_id"));
                         }
 
                         return jsonObject;
@@ -423,39 +388,119 @@ public class DbusUserInfo6BaseLabel {
                 .between(Time.minutes(-5), Time.days(5))
                 .process(new IntervalJoinCategory3LabelProcessFunc());
 
-        processIntervalJoinCategory3Ds.print("processIntervalJoinCategory3Ds");
+//        processIntervalJoinCategory3Ds.print("processIntervalJoinCategory3Ds");
 //{"payment_way":"3501","consignee":"于博诚","create_time":"1744133346000","sku_id":"14","tm_name":"联想","order_status":"1002","tm_id":"3","total_amount":11749.0,"user_id":"542","province_id":"14","name":"游戏本","trade_body":"联想（Lenovo） 拯救者Y9000P 2022 16英寸游戏笔记本电脑 i9-12900H RTX3070Ti 钛晶灰等1件商品","id":"2001","category3_id":"287","ts_ms":"1747055322186","split_total_amount":"11749.0"}
 
 
+        // TODO: 2025/5/15 关联二级分类表
+
+
+
+        SingleOutputStreamOperator<JSONObject> category2Ds = kfk_source.filter(data -> data.getJSONObject("source").getString("table").equals("base_category2"))
+                .uid("category2Ds")
+                .name("category2Ds");
+
+        SingleOutputStreamOperator<JSONObject> category2Map = category2Ds.map(new MapFunction<JSONObject, JSONObject>() {
+                    @Override
+                    public JSONObject map(JSONObject value) throws Exception {
+                        JSONObject jsonObject = new JSONObject();
+                        if (value.containsKey("after") && value.getJSONObject("after") != null ) {
+                            JSONObject after = value.getJSONObject("after");
+                            jsonObject.put("id", after.getString("id"));
+                            jsonObject.put("category1_id", after.getString("category1_id"));
+                        }
+
+                        return jsonObject;
+                    }
+                }).filter(json -> !json.isEmpty())
+                .uid("category2Map")
+                .name("category2Map");
+
+//                skuInfoMap.print("skuInfoMap");
+
+
+
+        SingleOutputStreamOperator<JSONObject> finalIntervalJoinCategory3Ds = processIntervalJoinCategory3Ds.filter(data -> data.containsKey("category2_id") && !data.getString("category2_id").isEmpty());
+        SingleOutputStreamOperator<JSONObject> finalCategory2Ds = category2Map.filter(data -> data.containsKey("id") && !data.getString("id").isEmpty());
+        //分组
+        KeyedStream<JSONObject, String> keyedStreamIntervalJoinCategory3DDs = finalIntervalJoinCategory3Ds.keyBy(data -> data.getString("category2_id"));
+        KeyedStream<JSONObject, String> keyedStreamCategory2Ds = finalCategory2Ds.keyBy(data -> data.getString("id"));
+        //订单表和订单明细关联
+        SingleOutputStreamOperator<JSONObject> processIntervalJoinCategory2Ds= keyedStreamIntervalJoinCategory3DDs.intervalJoin(keyedStreamCategory2Ds)
+                .between(Time.minutes(-5), Time.days(5))
+                .process(new IntervalJoinCategory2LabelProcessFunc());
+
+//        processIntervalJoinCategory2Ds.print("processIntervalJoinCategory2Ds");
 
 
 
 
 
+        // TODO: 2025/5/15 关联一级分类表
+
+
+        SingleOutputStreamOperator<JSONObject> category1Ds = kfk_source.filter(data -> data.getJSONObject("source").getString("table").equals("base_category1"))
+                .uid("category1Ds")
+                .name("category1Ds");
+
+        SingleOutputStreamOperator<JSONObject> category1Map = category1Ds.map(new MapFunction<JSONObject, JSONObject>() {
+                    @Override
+                    public JSONObject map(JSONObject value) throws Exception {
+                        JSONObject jsonObject = new JSONObject();
+                        if (value.containsKey("after") && value.getJSONObject("after") != null ) {
+                            JSONObject after = value.getJSONObject("after");
+                            jsonObject.put("id", after.getString("id"));
+                            jsonObject.put("category1_name", after.getString("name"));
+                        }
+
+                        return jsonObject;
+                    }
+                }).filter(json -> !json.isEmpty())
+                .uid("category1Map")
+                .name("category1Map");
+
+//                skuInfoMap.print("skuInfoMap");
+
+
+
+        SingleOutputStreamOperator<JSONObject> finalIntervalJoinCategory2Ds = processIntervalJoinCategory2Ds.filter(data -> data.containsKey("category1_id") && !data.getString("category1_id").isEmpty());
+        SingleOutputStreamOperator<JSONObject> finalCategory1Ds = category1Map.filter(data -> data.containsKey("id") && !data.getString("id").isEmpty());
+        //分组
+        KeyedStream<JSONObject, String> keyedStreamIntervalJoinCategory2Ds = finalIntervalJoinCategory2Ds.keyBy(data -> data.getString("category1_id"));
+        KeyedStream<JSONObject, String> keyedStreamCategory1Ds = finalCategory1Ds.keyBy(data -> data.getString("id"));
+        //关联一级品牌表
+        SingleOutputStreamOperator<JSONObject> processIntervalJoinCategory1Ds= keyedStreamIntervalJoinCategory2Ds.intervalJoin(keyedStreamCategory1Ds)
+                .between(Time.minutes(-5), Time.days(5))
+                .process(new IntervalJoinCategory1LabelProcessFunc());
+
+//        processIntervalJoinCategory1Ds.print("processIntervalJoinCategory1Ds");
+
+        // TODO: 2025/5/15  类目，品牌，价格，时间权重计算
+        SingleOutputStreamOperator<JSONObject> processIntervalJoinWeight = processIntervalJoinCategory1Ds.map(new CalculateWeightFunction());
 
 
 
 
+        win2MinutesPageLogsDs.print("%55555555555555555555555");
+//{"payment_way":"3501","consignee":"于盛雄","create_time":"1744126134000","sku_id":"10","tm_name":"苹果12233","category1_id":"2","order_status":"1002","tm_id":"2","total_amount":8197.0,"user_id":"27","province_id":"16","category1_name":"手机","trade_body":"Apple iPhone 12 (A2404) 64GB 蓝色 支持移动联通电信5G 双卡双待手机等1件商品","id":"1697","category3_id":"61","ts_ms":"1747055321962","category2_id":"13","split_total_amount":"8197.0"}
 
 
+        SingleOutputStreamOperator<JSONObject> finalIntervalJoinCategory1Ds = processIntervalJoinCategory1Ds.filter(data -> data.containsKey("user_id") && !data.getString("user_id").isEmpty());
+        SingleOutputStreamOperator<JSONObject> finalMinutesPageLogsDs = win2MinutesPageLogsDs.filter(data -> data.containsKey("uid") && !data.getString("uid").isEmpty());
+//        finalIntervalJoinCategory1Ds.print("000000000000000000000");
+//        finalMinutesPageLogsDs.print("999999999999999999999");
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        //分组
+//        KeyedStream<JSONObject, String> keyedStreamIntervalJoinCategory1Ds = finalIntervalJoinCategory1Ds.keyBy(data -> data.getString("user_id"));
+//        KeyedStream<JSONObject, String> keyedStreamPageLogsDs = finalMinutesPageLogsDs.keyBy(data -> data.getString("uid"));
+//        keyedStreamIntervalJoinCategory1Ds.print("!1111111111111");
+//        keyedStreamPageLogsDs.print("2222222222222222222222");
+//
+//        SingleOutputStreamOperator<JSONObject> AllIntervalJoin= keyedStreamPageLogsDs.intervalJoin(keyedStreamIntervalJoinCategory1Ds)
+//                .between(Time.days(-2), Time.days(2))
+//                .process(new AllIntervalJoinFunction());
+//
+//        AllIntervalJoin.print("all");
 
 //        userinfoDs.print();
 //        {"op":"c","after":{"birthday":12516,"gender":"M","create_time":1744133347000,"login_name":"8o958y5","nick_name":"富顺","name":"乐富顺","user_level":"1","phone_num":"13736681181","id":584,"email":"8o958y5@263.net"},"source":{"thread":934,"server_id":1,"version":"1.9.7.Final","file":"mysql-bin.000053","connector":"mysql","pos":3365754,"name":"mysql_binlog_source","row":0,"ts_ms":1746437347000,"snapshot":"false","db":"realtime_v1","table":"user_info"},"ts_ms":1747055322190}
@@ -559,9 +604,27 @@ public class DbusUserInfo6BaseLabel {
                 .between(Time.minutes(-5), Time.minutes(5))
                 .process(new IntervalJoinUserInfoLabelProcessFunc());
 
-        processIntervalJoinUserInfo6BaseMessageDs.print();
+        processIntervalJoinUserInfo6BaseMessageDs.print("????");
 
+
+
+        processIntervalJoinUserInfo6BaseMessageDs.map(data -> data.toJSONString())
+                .sinkTo(
+                        KafkaUtils.buildKafkaSink("cdh01:9092","base6_topic_v1")
+                );
+//设备
+        equipmentMap.map(data -> data.toJSONString())
+                .sinkTo(
+                        KafkaUtils.buildKafkaSink("cdh01:9092","base2_topic_v1")
+                );
+//类目
+        processIntervalJoinWeight.map(data -> data.toJSONString())
+                .sinkTo(
+                        KafkaUtils.buildKafkaSink("cdh01:9092","base4_topic_v1")
+                );
         env.execute();
+
+
 
     }
 /*
