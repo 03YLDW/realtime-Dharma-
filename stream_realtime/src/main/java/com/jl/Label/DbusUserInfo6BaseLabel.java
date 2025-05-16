@@ -161,7 +161,7 @@ public class DbusUserInfo6BaseLabel {
         SingleOutputStreamOperator<JSONObject> logDeviceInfoDs = dataPageLogConvertJsonDs.map(new MapDeviceInfoAndSearchKetWordMsgFunc())
                 .uid("get device info & search")
                 .name("get device info & search");
-
+        logDeviceInfoDs.print();
         //        logDeviceInfoDs.print();
         SingleOutputStreamOperator<JSONObject> filterNotNullUidLogPageMsg = logDeviceInfoDs.filter(data -> !data.getString("uid").isEmpty());
 
@@ -169,7 +169,7 @@ public class DbusUserInfo6BaseLabel {
         KeyedStream<JSONObject, String> keyedStreamLogPageMsg = filterNotNullUidLogPageMsg.keyBy(data -> data.getString("uid"));
 
         SingleOutputStreamOperator<JSONObject> processStagePageLogDs = keyedStreamLogPageMsg.process(new ProcessFilterRepeatTsDataFunc());
-//        processStagePageLogDs.print("wwwwwwwwwwwwwwwwwww");
+        processStagePageLogDs.print("wwwwwwwwwwwwwwwwwww");
 //                                                                                         keyBy将数据流按照uid分区，保证相同uid的数据进入同一个处理实例。此时数据还是多个记录，只是分区了。
         SingleOutputStreamOperator<JSONObject> win2MinutesPageLogsDs = processStagePageLogDs.keyBy(data -> data.getString("uid"))
 //                这个函数内部维护了每个uid的pv状态和字段集合。每次处理元素时，会更新pv和字段集合，
@@ -481,7 +481,7 @@ public class DbusUserInfo6BaseLabel {
 
 
 
-        win2MinutesPageLogsDs.print("%55555555555555555555555");
+//        win2MinutesPageLogsDs.print("%55555555555555555555555");
 //{"payment_way":"3501","consignee":"于盛雄","create_time":"1744126134000","sku_id":"10","tm_name":"苹果12233","category1_id":"2","order_status":"1002","tm_id":"2","total_amount":8197.0,"user_id":"27","province_id":"16","category1_name":"手机","trade_body":"Apple iPhone 12 (A2404) 64GB 蓝色 支持移动联通电信5G 双卡双待手机等1件商品","id":"1697","category3_id":"61","ts_ms":"1747055321962","category2_id":"13","split_total_amount":"8197.0"}
 
 
@@ -604,7 +604,7 @@ public class DbusUserInfo6BaseLabel {
                 .between(Time.minutes(-5), Time.minutes(5))
                 .process(new IntervalJoinUserInfoLabelProcessFunc());
 
-        processIntervalJoinUserInfo6BaseMessageDs.print("????");
+//        processIntervalJoinUserInfo6BaseMessageDs.print("????");
 
 
 

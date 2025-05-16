@@ -36,7 +36,8 @@ public class MapDeviceAndSearchMarkModelFunc extends RichMapFunction<JSONObject,
 
     @Override
     public void open(Configuration parameters) throws Exception {
-        connection = JdbcUtils.getMySQLConnection(
+        connection = JdbcUtils.getMySQLConnection(//涉及外部资源，需模拟连接
+
                 Constant.MYSQL_URL,
                 Constant.MYSQL_USER_NAME,
                 Constant.MYSQL_PASSWORD);
@@ -80,8 +81,12 @@ public class MapDeviceAndSearchMarkModelFunc extends RichMapFunction<JSONObject,
         // search
         String b1Category = jsonObject.getString("b1_category");
         if (b1Category != null && !b1Category.isEmpty()){
+
+            //将品类  进行循环
             for (DimCategoryCompare dimCategoryCompare : dimCategoryCompares) {
+                //来盘点用户搜索词中是否有相关词
                 if (b1Category.equals(dimCategoryCompare.getCategoryName())){
+                    //然后将对应品类添加
                     jsonObject.put("searchCategory",dimCategoryCompare.getSearchCategory());
                     break;
                 }

@@ -19,6 +19,7 @@ public class ProcessFilterRepeatTsData extends KeyedProcessFunction<String, JSON
 
     @Override
     public void open(Configuration parameters) {
+        // 创建状态描述符 存储每个键（Key）对应的已处理数据集合
         ValueStateDescriptor<HashSet<String>> descriptor = new ValueStateDescriptor<>(
                 "processedDataState",
                 TypeInformation.of(new org.apache.flink.api.common.typeinfo.TypeHint<HashSet<String>>() {})

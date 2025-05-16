@@ -116,6 +116,7 @@ public class DbusUserLabel6BaseCalculate {
 
 
         SingleOutputStreamOperator<JSONObject> join2_4Ds = mapBase2LabelDs.keyBy(o -> o.getString("uid"))
+                //        基于时间区间的双流连接操作
                 .intervalJoin(mapBase4LabelDs.keyBy(o -> o.getString("user_id")))
                 .between(Time.days(-5), Time.days(5))
                 .process(new ProcessJoinBase2And4BaseFunc());
@@ -132,7 +133,7 @@ public class DbusUserLabel6BaseCalculate {
 
 //        join2_4Ds.print();
         userLabelProcessDs.print();
-
+//        userLabelProcessDs.writeAsText("E:\\csv/output.csv").setParallelism(1);
 
         env.execute();
     }
