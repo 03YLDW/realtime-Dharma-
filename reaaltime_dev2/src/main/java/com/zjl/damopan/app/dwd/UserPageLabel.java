@@ -120,10 +120,11 @@ public class UserPageLabel {
                 .uid("win 2 minutes page count msg")
                 .name("win 2 minutes page count msg");
         win2MinutesPageLogsDs.print("win2MinutesPageLogsDs ->");
-
+// 使用自定义映射函数处理win2MinutesPageLogsDs数据流，以计算设备和搜索标记模型的页面日志
         SingleOutputStreamOperator<JSONObject> deviceAndSearchMarkModelPageLogsDs = win2MinutesPageLogsDs.map(new MapDeviceAndSearchMarkModelFunc(dim_base_categories, device_rate_weight_coefficient, search_rate_weight_coefficient));
-
+// 将处理后的页面日志转换为字符串格式，以便于后续sink到Kafka
         SingleOutputStreamOperator<String> deviceAndSearchMarkModelPageLogsDsSinkToKafka = deviceAndSearchMarkModelPageLogsDs.map(JSONObject::toString);
+        // 打印处理后的页面日志数据，便于调试和验证
         deviceAndSearchMarkModelPageLogsDsSinkToKafka.print("deviceAndSearchMarkModelPageLogsDsSinkToKafka ->");
         //{"device_35_39":0.04,"os":"iOS","device_50":0.02,"search_25_29":0,"ch":"Appstore","pv":1,"device_30_34":0.05,"device_18_24":0.07,"search_50":0,"search_40_49":0,"uid":"748","device_25_29":0.06,"md":"iPhone 14","search_18_24":0,"judge_os":"iOS","search_35_39":0,"device_40_49":0.03,"search_item":"","ts_ms":"1747304573000","ba":"iPhone","search_30_34":0}
 
