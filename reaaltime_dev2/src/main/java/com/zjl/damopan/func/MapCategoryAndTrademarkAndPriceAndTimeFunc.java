@@ -29,9 +29,13 @@ public class MapCategoryAndTrademarkAndPriceAndTimeFunc extends RichMapFunction<
 
     @Override
     public JSONObject map(JSONObject jsonObject) throws Exception {
+        // 获取JSON对象中的category3_id字段值
         String c3id = jsonObject.getString("category3_id");
+        // 检查category3_id是否非空
         if (c3id != null && !c3id.isEmpty()){
+            // 遍历dimBaseCategories列表，寻找匹配的类别ID
             for (DimBaseCategory dimBaseCategory : dimBaseCategories) {
+                // 当找到匹配的类别ID时，更新JSON对象，并终止循环
                 if (c3id.equals(dimBaseCategory.getId())){
                     jsonObject.put("b1_name",dimBaseCategory.getB1name());
                     break;

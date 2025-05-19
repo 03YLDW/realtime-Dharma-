@@ -120,7 +120,9 @@ public class DbusUserLabel6BaseCalculate {
                 .intervalJoin(mapBase4LabelDs.keyBy(o -> o.getString("user_id")))
                 .between(Time.days(-5), Time.days(5))
                 .process(new ProcessJoinBase2And4BaseFunc());
-
+// 使用WatermarkStrategy为join2_4Ds数据流分配时间戳和水印
+// 设置最大允许的乱序时间为5秒
+// 指定时间戳的获取方式：从JSONObject中提取"ts_ms"字段作为时间戳
         SingleOutputStreamOperator<JSONObject> waterJoin2_4 = join2_4Ds.assignTimestampsAndWatermarks(
                 WatermarkStrategy.<JSONObject>forBoundedOutOfOrderness(Duration.ofSeconds(5))
                 .withTimestampAssigner((SerializableTimestampAssigner<JSONObject>) (jsonObject, l) -> jsonObject.getLongValue("ts_ms")));
