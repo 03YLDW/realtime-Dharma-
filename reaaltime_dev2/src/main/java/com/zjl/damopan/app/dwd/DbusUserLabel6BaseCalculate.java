@@ -31,26 +31,32 @@ public class DbusUserLabel6BaseCalculate {
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 //        EnvironmentSettingUtils.defaultParameter(env);
-
+// 从Kafka中构建一个数据流源，用于处理特定主题的实时数据
         SingleOutputStreamOperator<String> kafkaBase6Source = env.fromSource(
+                        // 使用Kafka工具类构建一个安全的Kafka源
                         KafkaUtils.buildKafkaSecureSource(
-                                kafka_botstrap_servers,
-                                kafka_label_base6_topic,
-                                new Date().toString(),
-                                OffsetsInitializer.earliest()
+                                kafka_botstrap_servers, // Kafka服务器地址
+                                kafka_label_base6_topic, // Kafka主题
+                                new Date().toString(),// 从当前时间开始读取数据
+                                OffsetsInitializer.earliest()// 从最早的偏移量开始读取
                         ),
+                        // 配置水印策略，处理无序事件
                         WatermarkStrategy.<String>forBoundedOutOfOrderness(Duration.ofSeconds(3))
                                 .withTimestampAssigner((event, timestamp) -> {
+                                    // 解析事件中的时间戳，用于水印生成
                                             JSONObject jsonObject = JSONObject.parseObject(event);
                                             if (event != null && jsonObject.containsKey("ts_ms")){
                                                 try {
+                                                    // 如果事件中包含ts_ms字段，则使用该字段作为事件时间戳
                                                     return JSONObject.parseObject(event).getLong("ts_ms");
                                                 }catch (Exception e){
+                                                    // 异常处理：打印错误信息并返回0作为默认时间戳
                                                     e.printStackTrace();
                                                     System.err.println("Failed to parse event as JSON or get ts_ms: " + event);
                                                     return 0L;
                                                 }
                                             }
+                                    // 如果事件中不包含ts_ms字段，则返回0作为默认时间戳
                                             return 0L;
                                         }
                                 ),
