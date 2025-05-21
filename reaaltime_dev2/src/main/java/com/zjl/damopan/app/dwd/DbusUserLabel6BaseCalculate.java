@@ -19,9 +19,13 @@ import java.util.Date;
 
 
 public class DbusUserLabel6BaseCalculate {
+    // Kafka服务器的地址配置
     private static final String kafka_botstrap_servers = "cdh01:9092";
+    // 存储基础标签信息的Kafka主题
     private static final String kafka_label_base6_topic = "dwd_base6_label";
+    // 存储订单信息基础标签的Kafka主题
     private static final String kafka_label_base4_topic = "dwd_order_info_base_label";
+    // 存储页面信息基础标签的Kafka主题
     private static final String kafka_label_base2_topic = "dwd_page_info_base_lebel";
 
     @SneakyThrows
