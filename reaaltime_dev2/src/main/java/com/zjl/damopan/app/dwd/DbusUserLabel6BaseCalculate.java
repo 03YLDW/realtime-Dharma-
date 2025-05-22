@@ -70,6 +70,7 @@ public class DbusUserLabel6BaseCalculate {
 
         SingleOutputStreamOperator<String> kafkaBase4Source = env.fromSource(
                         KafkaUtils.buildKafkaSecureSource(
+                                // 定义Kafka消费者配置，指定引导服务器地址、消费的主题、时间戳和从最早的消息偏移量开始消费
                                 kafka_botstrap_servers,
                                 kafka_label_base4_topic,
                                 new Date().toString(),
