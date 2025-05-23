@@ -230,9 +230,11 @@ public class UserOderInfoLabel {
                     }
                 });
         //processOrderInfoJoinOrderDetail.print("processOrderInfoJoinOrderDetail ->");
-
+// 将订单信息与商品SKU信息进行关联，以获取更丰富的商品数据                                                 // 按照sku_id进行分组，以便后续的区间连接操作
         SingleOutputStreamOperator<JSONObject> processOrderJoinSkuInfo = processOrderInfoJoinOrderDetail.keyBy(data -> data.getString("sku_id")).intervalJoin(keyedSkuInfoDs)
+                // 与SKU信息数据流进行区间连接，允许的时间偏差为前后2分钟
                 .between(Time.minutes(-2), Time.minutes(2))
+                // 定义具体的连接处理函数
                 .process(new ProcessJoinFunction<JSONObject, JSONObject, JSONObject>() {
                     @Override
                     public void processElement(JSONObject left, JSONObject right, ProcessJoinFunction<JSONObject, JSONObject, JSONObject>.Context ctx, Collector<JSONObject> out) {
