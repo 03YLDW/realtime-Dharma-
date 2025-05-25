@@ -248,13 +248,14 @@ public class UserOderInfoLabel {
                     }
                 });
         //processOrderJoinSkuInfo.print("processOrderJoinSkuInfo ->");
-
+// 将订单信息与商品SKU信息进行时间间隔内的连接，以获取品牌信息
         SingleOutputStreamOperator<JSONObject> processSkuInfoJoinBaseTrademark = processOrderJoinSkuInfo.keyBy(data -> data.getString("tm_id")).intervalJoin(keyedBaseTrademark)
                 .between(Time.minutes(-2), Time.minutes(2))
                 .process(new ProcessJoinFunction<JSONObject, JSONObject, JSONObject>() {
                     @Override
                     public void processElement(JSONObject left, JSONObject right, ProcessJoinFunction<JSONObject, JSONObject, JSONObject>.Context ctx, Collector<JSONObject> out) {
                         JSONObject result = new JSONObject();
+                        // 当订单中的品牌ID与品牌信息中的ID匹配时，合并信息
                         if (left.getString("tm_id").equals(right.getString("id"))) {
                             result.putAll(left);
                             result.put("tm_name", right.getString("tm_name"));
@@ -263,8 +264,9 @@ public class UserOderInfoLabel {
                     }
                 });
         //processSkuInfoJoinBaseTrademark.print("processSkuInfoJoinCategory ->");
-
+// 使用Map函数处理商品信息，关联基础商标数据，并根据类别、商标、价格和时间权重系数调整商品信息
         SingleOutputStreamOperator<JSONObject> mapOrderInfoAndDetailModelDs = processSkuInfoJoinBaseTrademark.map(new MapCategoryAndTrademarkAndPriceAndTimeFunc(dim_base_categories, category_rate_weight_coefficient, trademark_rate_weight_coefficient,price_rate_weight_coefficient,time_rate_weight_coefficient));
+        // 打印映射后的订单信息和详细模型数据
         mapOrderInfoAndDetailModelDs.print("mapOrderInfoAndDetailModelDs ->");
 
         /*SingleOutputStreamOperator<JSONObject> mapOrderInfoSummary = processSkuInfoJoinBaseTrademark.map(new RichMapFunction<JSONObject, JSONObject>() {
